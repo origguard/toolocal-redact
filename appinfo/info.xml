@@ -1,0 +1,33 @@
+<?xml version="1.0"?>
+<info xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+      xsi:noNamespaceSchemaLocation="https://apps.nextcloud.com/schema/apps/info.xsd">
+  <id>toolocal_redact</id>
+  <name>Toolocal Redact</name>
+  <summary>Redact PDFs without sending them to a third party</summary>
+  <description><![CDATA[
+Right-click a PDF in Files, redact it, save it back.
+
+The file travels only between your Nextcloud instance and your browser. No
+third-party service receives it, no sub-processor is involved, and no
+additional server component is required.
+
+**Verify it yourself.** The package is self-contained: it loads no remote
+script, font or asset. You can check that on the installed package:
+
+    npx @origguard-web/local-guard --target apps/toolocal_redact/js
+
+Any call to a third-party origin makes that command fail. The only declared
+exception is WebDAV against your own instance, documented with its reason in
+local-guard.json.
+  ]]></description>
+  <version>0.1.0</version>
+  <licence>agpl</licence>
+  <author mail="contact@toolocal.tech" homepage="https://toolocal.tech">Forges Emmanuel</author>
+  <namespace>ToolocalRedact</namespace>
+  <category>files</category>
+  <category>security</category>
+  <bugs>https://github.com/origguard/toolocal-redact/issues</bugs>
+  <dependencies>
+    <nextcloud min-version="30" max-version="32"/>
+  </dependencies>
+</info>

@@ -1,0 +1,25 @@
+{
+  "name": "toolocal_redact",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Redact PDFs in Nextcloud without sending them to a third party.",
+  "scripts": {
+    "build": "webpack --node-env production --progress",
+    "dev": "webpack --node-env development --progress",
+    "test": "node test/engine.test.mjs",
+    "check:self-contained": "node ../../../local-guard.mjs --target js",
+    "package": "node scripts/package.cjs"
+  },
+  "devDependencies": {
+    "webpack": "^5.90.0",
+    "webpack-cli": "^5.1.4"
+  },
+  "dependencies": {
+    "@nextcloud/axios": "^2.0.0",
+    "@nextcloud/dialogs": "^6.0.0",
+    "@nextcloud/files": "^3.0.0",
+    "@nextcloud/l10n": "^3.0.0",
+    "@nextcloud/router": "^3.0.0",
+    "pdf-lib": "^1.17.1"
+  }
+}

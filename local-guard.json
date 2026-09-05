@@ -1,0 +1,9 @@
+{
+  "_comment": "Une seule exception, et elle porte son motif. Toute origine tierce fait échouer la CI.",
+  "allow": [
+    {
+      "pattern": "dav/files",
+      "reason": "WebDAV vers l'instance Nextcloud de l'utilisateur lui-même — même origine, aucun tiers. C'est le fichier qui vient du serveur qu'il administre déjà, et qui y retourne. C'est précisément ce qui rend inutile tout accord de sous-traitance."
+    }
+  ]
+}
