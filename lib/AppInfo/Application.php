@@ -3,6 +3,8 @@ declare(strict_types=1);
 
 namespace OCA\ToolocalRedact\AppInfo;
 
+use OCA\Files\Event\LoadAdditionalScriptsEvent;
+use OCA\ToolocalRedact\Listener\LoadAdditionalScriptsListener;
 use OCP\AppFramework\App;
 use OCP\AppFramework\Bootstrap\IBootContext;
 use OCP\AppFramework\Bootstrap\IBootstrap;
@@ -25,7 +27,10 @@ class Application extends App implements IBootstrap {
     }
 
     public function register(IRegistrationContext $context): void {
-        // Rien à enregistrer : ni service, ni listener, ni route.
+        $context->registerEventListener(
+            LoadAdditionalScriptsEvent::class,
+            LoadAdditionalScriptsListener::class
+        );
     }
 
     public function boot(IBootContext $context): void {

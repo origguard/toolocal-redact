@@ -4,3 +4,15 @@ dist-package/
 *.log
 .DS_Store
 Thumbs.db
+MESSAGE-JOS*
+*jos*
+*.bak
+.certs/
+.git-bak/
+*.sig
+*.sha256
+*.sha512
+submission-metadata.json
+
+
+

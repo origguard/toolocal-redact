@@ -31,12 +31,11 @@ module.exports = {
       zlib: false,
       stream: false,
       buffer: false,
+      string_decoder: false,
     },
   },
   externals: {
     '@nextcloud/axios': 'OC.axios || window.axios',
-    '@nextcloud/dialogs': 'OC.dialogs',
-    '@nextcloud/files': 'OCA.Files',
     '@nextcloud/l10n': 'OC.L10N',
     '@nextcloud/router': 'OC.Router',
   },

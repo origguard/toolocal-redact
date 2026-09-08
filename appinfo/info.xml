@@ -3,7 +3,9 @@
       xsi:noNamespaceSchemaLocation="https://apps.nextcloud.com/schema/apps/info.xsd">
   <id>toolocal_redact</id>
   <name>Toolocal Redact</name>
+  <name lang="fr">Toolocal Redact</name>
   <summary>Redact PDFs without sending them to a third party</summary>
+  <summary lang="fr">Caviardez vos documents PDF sans aucun transfert vers un tiers</summary>
   <description><![CDATA[
 Right-click a PDF in Files, redact it, save it back.
 
@@ -20,14 +22,33 @@ Any call to a third-party origin makes that command fail. The only declared
 exception is WebDAV against your own instance, documented with its reason in
 local-guard.json.
   ]]></description>
-  <version>0.1.0</version>
+  <description lang="fr"><![CDATA[
+Clic droit sur un PDF dans Fichiers, caviardez les données sensibles, enregistrez-le directement.
+
+Le document circule uniquement entre votre instance Nextcloud et votre navigateur. Aucun
+service tiers ne le reçoit, aucun sous-traitant n'intervient et aucun
+serveur supplémentaire n'est requis côté administrateur.
+
+**Vérifiez par vous-même.** Le paquet est 100% autonome : il ne charge aucun
+script, aucune police ni ressource distante. Vous pouvez le contrôler
+directement sur le paquet installé :
+
+    npx @origguard-web/local-guard --target apps/toolocal_redact/js
+
+Tout appel vers une origine tierce non déclarée fait échouer le contrôle. L'unique
+exception déclarée est WebDAV vers votre propre instance Nextcloud, documentée avec
+son motif dans local-guard.json.
+  ]]></description>
+  <version>0.2.0</version>
   <licence>agpl</licence>
   <author mail="contact@toolocal.tech" homepage="https://toolocal.tech">Forges Emmanuel</author>
   <namespace>ToolocalRedact</namespace>
   <category>files</category>
   <category>security</category>
+  <website>https://toolocal.tech</website>
   <bugs>https://github.com/origguard/toolocal-redact/issues</bugs>
+  <repository type="git">https://github.com/origguard/toolocal-redact.git</repository>
   <dependencies>
-    <nextcloud min-version="30" max-version="32"/>
+    <nextcloud min-version="30" max-version="38"/>
   </dependencies>
 </info>
