@@ -16,8 +16,8 @@
 
 ## Package Integrity & Cryptography
 - **Archive**: `toolocal_redact-0.2.0.tar.gz`
-- **SHA-256**: `c6449e14cfc102502d06648d9a947b8d83dbd932b24d79395b5da9a7d4cf1a06`
-- **SHA-512**: `1c434423b8fe4fa2c0db6da7b1e070f36e44662ddeaab07948d94b562b99ca23199cb62965e093bed1dbe12e8273af60b5cd26252e10ac81a76c7f2ff0123a52`
+- **SHA-256**: `3d3998cee237882e0b83178f4c99f8325e105eac70163a97aac3361cdafb7d3e`
+- **SHA-512**: `f33a46ee6693361b63b7b10cbb89664270967e9cf795797db580433fcaf4644e467ccf45f5cc995f2224752b1aeb20df537d42f252f6fecc8ec463e8423d2685`
 - **RSA-SHA512 Signature**: See `toolocal_redact-0.2.0.tar.gz.sig`
 
 ## Installation
