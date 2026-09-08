@@ -1,6 +1,6 @@
 {
   "name": "toolocal_redact",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "private": true,
   "description": "Redact PDFs in Nextcloud without sending them to a third party.",
   "scripts": {
@@ -15,6 +15,7 @@
     "webpack-cli": "^5.1.4"
   },
   "dependencies": {
+    "@nextcloud/auth": "^2.6.0",
     "@nextcloud/axios": "^2.0.0",
     "@nextcloud/dialogs": "^6.0.0",
     "@nextcloud/files": "^4.0.0",

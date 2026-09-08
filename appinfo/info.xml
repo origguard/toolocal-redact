@@ -16,9 +16,9 @@ additional server component is required.
 **Direct download & installation:**
 
     cd /var/www/nextcloud/apps
-    curl -L -O https://github.com/origguard/toolocal-redact/releases/download/v0.2.0/toolocal_redact-0.2.0.tar.gz
-    tar -xzf toolocal_redact-0.2.0.tar.gz
-    rm toolocal_redact-0.2.0.tar.gz
+    curl -L -O https://github.com/origguard/toolocal-redact/releases/download/v0.2.1/toolocal_redact-0.2.1.tar.gz
+    tar -xzf toolocal_redact-0.2.1.tar.gz
+    rm toolocal_redact-0.2.1.tar.gz
     occ app:enable toolocal_redact
 
 **Verify it yourself.** The package is self-contained: it loads no remote
@@ -40,9 +40,9 @@ serveur supplémentaire n'est requis côté administrateur.
 **Installation directe dans Nextcloud :**
 
     cd /var/www/nextcloud/apps
-    curl -L -O https://github.com/origguard/toolocal-redact/releases/download/v0.2.0/toolocal_redact-0.2.0.tar.gz
-    tar -xzf toolocal_redact-0.2.0.tar.gz
-    rm toolocal_redact-0.2.0.tar.gz
+    curl -L -O https://github.com/origguard/toolocal-redact/releases/download/v0.2.1/toolocal_redact-0.2.1.tar.gz
+    tar -xzf toolocal_redact-0.2.1.tar.gz
+    rm toolocal_redact-0.2.1.tar.gz
     occ app:enable toolocal_redact
 
 **Vérifiez par vous-même.** Le paquet est 100% autonome : il ne charge aucun
@@ -55,7 +55,7 @@ Tout appel vers une origine tierce non déclarée fait échouer le contrôle. L'
 exception déclarée est WebDAV vers votre propre instance Nextcloud, documentée avec
 son motif dans local-guard.json.
   ]]></description>
-  <version>0.2.0</version>
+  <version>0.2.1</version>
   <licence>agpl</licence>
   <author mail="contact@toolocal.tech" homepage="https://toolocal.tech">Forges Emmanuel</author>
   <namespace>ToolocalRedact</namespace>

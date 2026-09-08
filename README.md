@@ -11,9 +11,9 @@ Clic droit sur un PDF dans Fichiers → *Caviarder* → le fichier est lu par We
 ```bash
 # Direct download into Nextcloud apps folder
 cd /var/www/nextcloud/apps
-curl -L -O https://github.com/origguard/toolocal-redact/releases/download/v0.2.0/toolocal_redact-0.2.0.tar.gz
-tar -xzf toolocal_redact-0.2.0.tar.gz
-rm toolocal_redact-0.2.0.tar.gz
+curl -L -O https://github.com/origguard/toolocal-redact/releases/download/v0.2.1/toolocal_redact-0.2.1.tar.gz
+tar -xzf toolocal_redact-0.2.1.tar.gz
+rm toolocal_redact-0.2.1.tar.gz
 occ app:enable toolocal_redact
 ```
 

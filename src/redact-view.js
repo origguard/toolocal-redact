@@ -9,6 +9,11 @@
  */
 import { generateRemoteUrl } from '@nextcloud/router'
 import { translate as t } from '@nextcloud/l10n'
+import {
+  getRequestToken as getNcRequestToken,
+  fetchRequestToken,
+  getCurrentUser,
+} from '@nextcloud/auth'
 
 // Moteur de caviardage local souverain
 import {
@@ -21,22 +26,78 @@ import {
 } from './engine/redact.js'
 
 /**
- * Récupère le jeton CSRF de Nextcloud pour autoriser les requêtes WebDAV d'écriture.
+ * Récupère le jeton CSRF de manière asynchrone avec renouvellement automatique.
+ * Compatible Nextcloud Hub 30 à 38+.
+ */
+async function getCsrfToken() {
+  // 1. Module officiel @nextcloud/auth
+  try {
+    const authTok = getNcRequestToken()
+    if (authTok) return authTok
+  } catch (e) {}
+
+  // 2. Global state & DOM dataset (Nextcloud Hub 30+)
+  if (typeof window !== 'undefined') {
+    if (globalThis._nc_auth_requestToken) return globalThis._nc_auth_requestToken
+    if (typeof document !== 'undefined') {
+      const headTok = document.head?.dataset?.requesttoken
+      if (headTok) return headTok
+      const bodyTok = document.body?.getAttribute('data-requesttoken')
+      if (bodyTok) return bodyTok
+      const meta = document.querySelector('meta[name="csrf-token"]')
+      if (meta && meta.content) return meta.content
+    }
+    if (window.OC && window.OC.requestToken) return window.OC.requestToken
+    if (window.oc_requesttoken) return window.oc_requesttoken
+  }
+
+  // 3. Récupération via l'API Nextcloud csrftoken si absent du DOM
+  try {
+    const fetchedTok = await fetchRequestToken()
+    if (fetchedTok) return fetchedTok
+  } catch (e) {}
+
+  // 4. Fallback direct /index.php/csrftoken
+  try {
+    const res = await fetch('/index.php/csrftoken', {
+      headers: { 'X-Requested-With': 'XMLHttpRequest' },
+      credentials: 'same-origin',
+    })
+    if (res.ok) {
+      const data = await res.json()
+      if (data && data.token) return data.token
+    }
+  } catch (e) {}
+
+  return ''
+}
+
+/**
+ * Récupère le jeton CSRF de Nextcloud de manière synchrone.
  */
 function getRequestToken() {
+  try {
+    const authTok = getNcRequestToken()
+    if (authTok) return authTok
+  } catch (e) {}
+
   if (typeof window !== 'undefined') {
+    if (globalThis._nc_auth_requestToken) return globalThis._nc_auth_requestToken
+    if (typeof document !== 'undefined' && document.head?.dataset?.requesttoken) {
+      return document.head.dataset.requesttoken
+    }
     if (window.OC && window.OC.requestToken) return window.OC.requestToken
-    const meta = document.querySelector('meta[name="csrf-token"]')
-    if (meta && meta.content) return meta.content
-    const bodyAttr = document.body && document.body.getAttribute('data-requesttoken')
-    if (bodyAttr) return bodyAttr
+    if (typeof document !== 'undefined') {
+      const bodyTok = document.body?.getAttribute('data-requesttoken')
+      if (bodyTok) return bodyTok
+    }
   }
   return ''
 }
 
 /**
  * Détermine les URLs WebDAV absolues pour la lecture et l'écriture du fichier
- * de manière 100% compatible avec Nextcloud Hub 30 à 38.
+ * de manière 100% compatible avec Nextcloud Hub 30 à 38+.
  */
 function resolveWebDavUrls(file, suffix = '-redacted') {
   const origName = file.basename || file.name || 'document.pdf'
@@ -63,10 +124,17 @@ function resolveWebDavUrls(file, suffix = '-redacted') {
     davBase = '/remote.php/dav/files'
   }
 
-  const userId = (window.OC && window.OC.getCurrentUser && window.OC.getCurrentUser()?.uid)
-    || (window.OC && window.OC.currentUser)
-    || file.owner
-    || ''
+  let userId = ''
+  try {
+    const user = getCurrentUser()
+    if (user && user.uid) userId = user.uid
+  } catch (e) {}
+  if (!userId) {
+    userId = (typeof window !== 'undefined' && window.OC && window.OC.getCurrentUser && window.OC.getCurrentUser()?.uid)
+      || (typeof window !== 'undefined' && window.OC && window.OC.currentUser)
+      || file.owner
+      || ''
+  }
 
   const filePath = file.path
     || (file.dir ? `${file.dir.replace(/\/+$/, '')}/${origName}` : `/${origName}`)
@@ -86,16 +154,34 @@ function resolveWebDavUrls(file, suffix = '-redacted') {
  */
 async function readFile(file) {
   const { readUrl } = resolveWebDavUrls(file)
+  const token = getRequestToken()
   const headers = {
     'X-Requested-With': 'XMLHttpRequest',
-    'requesttoken': getRequestToken(),
+  }
+  if (token) {
+    headers.requesttoken = token
   }
 
-  const res = await fetch(readUrl, {
+  let res = await fetch(readUrl, {
     method: 'GET',
     headers,
     credentials: 'same-origin',
   })
+
+  // Tentative avec jeton rafraîchi si rejet CSRF ou session
+  if (res.status === 401 || res.status === 403) {
+    try {
+      const freshToken = await fetchRequestToken()
+      if (freshToken) {
+        headers.requesttoken = freshToken
+        res = await fetch(readUrl, {
+          method: 'GET',
+          headers,
+          credentials: 'same-origin',
+        })
+      }
+    } catch (e) {}
+  }
 
   if (!res.ok) {
     throw new Error(`Failed to read file via WebDAV (HTTP ${res.status})`)
@@ -110,23 +196,44 @@ async function readFile(file) {
  */
 async function writeFile(file, bytes, suffix = '-redacted', view = null) {
   const { saveUrl, targetName } = resolveWebDavUrls(file, suffix)
-  const token = getRequestToken()
+  let token = await getCsrfToken()
 
-  const headers = {
-    'Content-Type': 'application/pdf',
-    'X-Requested-With': 'XMLHttpRequest',
-    'OCS-APIREQUEST': 'true',
-  }
-  if (token) {
-    headers.requesttoken = token
+  const makeHeaders = (csrfToken) => {
+    const h = {
+      'Content-Type': 'application/pdf',
+      'X-Requested-With': 'XMLHttpRequest',
+      'OCS-APIREQUEST': 'true',
+    }
+    if (csrfToken) {
+      h.requesttoken = csrfToken
+    }
+    return h
   }
 
-  const res = await fetch(saveUrl, {
+  let res = await fetch(saveUrl, {
     method: 'PUT',
-    headers,
+    headers: makeHeaders(token),
     body: bytes,
     credentials: 'same-origin',
   })
+
+  // Si rejet CSRF (401, 403 ou 412), renouveler le jeton et réessayer immédiatement
+  if (res.status === 401 || res.status === 403 || res.status === 412) {
+    try {
+      const freshToken = await fetchRequestToken()
+      if (freshToken) {
+        token = freshToken
+        res = await fetch(saveUrl, {
+          method: 'PUT',
+          headers: makeHeaders(freshToken),
+          body: bytes,
+          credentials: 'same-origin',
+        })
+      }
+    } catch (e) {
+      console.warn('[Toolocal Redact] Token refresh retry failed:', e)
+    }
+  }
 
   if (!res.ok && res.status !== 201 && res.status !== 204 && res.status !== 200) {
     throw new Error(`Failed to save redacted file via WebDAV (HTTP ${res.status} ${res.statusText})`)
@@ -136,10 +243,13 @@ async function writeFile(file, bytes, suffix = '-redacted', view = null) {
   try {
     if (view && typeof view.reload === 'function') {
       view.reload()
-    } else if (window.OCA && window.OCA.Files && window.OCA.Files.fileList && typeof window.OCA.Files.fileList.reload === 'function') {
+    } else if (typeof window !== 'undefined' && window.OCA && window.OCA.Files && window.OCA.Files.fileList && typeof window.OCA.Files.fileList.reload === 'function') {
       window.OCA.Files.fileList.reload()
     }
-    window.dispatchEvent(new CustomEvent('files:reload'))
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('files:reload'))
+      window.dispatchEvent(new CustomEvent('files:node:updated'))
+    }
   } catch (err) {
     // Non bloquant
   }
