@@ -2,6 +2,7 @@ const path = require('path')
 
 module.exports = {
   mode: process.env.NODE_ENV === 'development' ? 'development' : 'production',
+  devtool: false,
   entry: {
     'toolocal_redact-main': path.resolve(__dirname, 'src', 'fileaction.js'),
   },

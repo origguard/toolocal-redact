@@ -19,9 +19,17 @@ jobs:
       # Deuxième filet : aucune ressource distante dans le HTML/les gabarits.
       - name: No remote asset in templates
         run: |
-          ! grep -rEn '<(script|link|img|iframe)[^>]+(src|href)="https?://' \
-              templates/ js/ 2>/dev/null | grep . || exit 1
+          if grep -rEn '<(script|link|img|iframe)[^>]+(src|href)="https?://' templates/ js/ 2>/dev/null; then
+            echo "Error: Remote asset found in templates or js"
+            exit 1
+          fi
+          echo "OK: No remote assets found in templates or js."
 
       # Le paquet ne doit pas embarquer d'artefacts de développement.
       - name: No source maps shipped
-        run: ! ls js/*.map 2>/dev/null | grep . || exit 1
+        run: |
+          if ls js/*.map 1>/dev/null 2>&1; then
+            echo "Error: Source maps found in js/"
+            exit 1
+          fi
+          echo "OK: No source maps shipped."
