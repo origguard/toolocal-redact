@@ -4,7 +4,7 @@
  * Compatible Nextcloud Hub 30 à 38.
  * Supporte à la fois les nouvelles interfaces @nextcloud/files et les fallbacks legacy.
  */
-import { registerFileAction, FileAction, Permission } from '@nextcloud/files'
+import { registerFileAction, Permission } from '@nextcloud/files'
 import { translate as t } from '@nextcloud/l10n'
 import { openRedactor } from './redact-view.js'
 import redactSvg from '../img/redact.svg?raw'
@@ -41,13 +41,13 @@ const actionConfig = {
 }
 
 try {
-  registerFileAction(new FileAction(actionConfig))
+  registerFileAction(actionConfig)
 } catch (e) {
   console.warn('[Toolocal Redact] Standard registerFileAction failed, trying window registry fallback:', e)
   if (typeof window !== 'undefined') {
     window._nc_fileactions = window._nc_fileactions || []
     if (!window._nc_fileactions.some((a) => a.id === actionConfig.id)) {
-      window._nc_fileactions.push(new FileAction(actionConfig))
+      window._nc_fileactions.push(actionConfig)
     }
   }
 }
