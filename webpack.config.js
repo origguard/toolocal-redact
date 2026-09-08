@@ -16,6 +16,10 @@ module.exports = {
         resourceQuery: /raw/,
         type: 'asset/source',
       },
+      {
+        test: /pdf\.worker\.min\.js$/,
+        type: 'asset/resource',
+      },
     ],
   },
   resolve: {

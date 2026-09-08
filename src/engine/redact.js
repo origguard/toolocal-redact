@@ -52,6 +52,9 @@ function escapeRegExp(string) {
   return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 }
 
+// Émis par webpack comme fichier séparé, servi depuis le même dossier js/.
+const workerUrl = new URL('../vendor/pdf.worker.min.js', import.meta.url)
+
 /**
  * Initialise l'environnement PDF.js en mode 100% hors-ligne (fake-worker local).
  */
@@ -61,7 +64,7 @@ export function getPdfJs() {
     throw new Error('PDF.js engine is not initialized')
   }
   if (lib.GlobalWorkerOptions) {
-    lib.GlobalWorkerOptions.workerSrc = ''
+    lib.GlobalWorkerOptions.workerSrc = workerUrl.toString()
   }
   return lib
 }
