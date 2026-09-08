@@ -1,7 +1,7 @@
 /**
  * Action « Caviarder » sur les PDF dans l'app Fichiers Nextcloud.
  *
- * Compatible Nextcloud Hub 30 jusqu'à Hub 35+ (branche master).
+ * Compatible Nextcloud Hub 30 à 38.
  * Supporte à la fois les nouvelles interfaces @nextcloud/files et les fallbacks legacy.
  */
 import { registerFileAction, FileAction, Permission } from '@nextcloud/files'

@@ -36,7 +36,7 @@ function getRequestToken() {
 
 /**
  * Détermine les URLs WebDAV absolues pour la lecture et l'écriture du fichier
- * de manière 100% compatible avec Nextcloud 30 jusqu'à Hub 35+ (branche master).
+ * de manière 100% compatible avec Nextcloud Hub 30 à 38.
  */
 function resolveWebDavUrls(file, suffix = '-redacted') {
   const origName = file.basename || file.name || 'document.pdf'
@@ -350,11 +350,15 @@ async function presentEditor(bytes, file) {
         </label>
 
         <label style="display:flex; align-items:flex-start; gap:8px; font-size:12px; cursor:pointer;">
-          <input type="checkbox" id="tl-chk-gdpr" checked style="margin-top:2px;">
+          <input type="checkbox" id="tl-chk-gdpr" style="margin-top:2px;">
           <span>
-            <strong>RGPD / GDPR :</strong> Emails, Téléphones, IBANs, Cartes bancaires, Sécurité sociale...
+            <strong>Assistance motifs RGPD :</strong> Aide au repérage (Emails, Téléphones, IBANs, Cartes, Sécurité sociale...)
           </span>
         </label>
+
+        <div style="background:#fffbeb; border:1px solid #fef3c7; border-left:3px solid #f59e0b; padding:6px 8px; border-radius:4px; font-size:10.5px; color:#92400e; line-height:1.35; margin-top:2px; margin-bottom:6px;">
+          ⚠️ <strong>Aide au repérage :</strong> Cette détection est une aide visuelle. Un format atypique, un espace inhabituel ou une césure de ligne peut échapper aux filtres. <em>Une relecture humaine reste obligatoire avant transmission.</em>
+        </div>
 
         <div style="border-top:1px solid #e2e8f0; padding-top:8px; display:flex; align-items:center; justify-content:space-between;">
           <span id="tl-detected-badge" style="font-size:12px; font-weight:600; color:#2563eb;">
