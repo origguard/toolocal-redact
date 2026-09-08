@@ -4,6 +4,18 @@
     {
       "pattern": "dav/files",
       "reason": "WebDAV vers l'instance Nextcloud de l'utilisateur lui-même — même origine, aucun tiers. C'est le fichier qui vient du serveur qu'il administre déjà, et qui y retourne. C'est précisément ce qui rend inutile tout accord de sous-traitance."
+    },
+    {
+      "pattern": "fetch",
+      "reason": "Opérations de lecture et d'enregistrement WebDAV sur l'instance Nextcloud de l'utilisateur (même origine, aucun sous-traitant)."
+    },
+    {
+      "pattern": "xhr",
+      "reason": "Requêtes XMLHttpRequest de secours pour WebDAV vers l'instance Nextcloud locale (même origine)."
+    },
+    {
+      "pattern": "XMLHttpRequest",
+      "reason": "Requêtes XMLHttpRequest de secours pour WebDAV vers l'instance Nextcloud locale (même origine)."
     }
   ]
 }
