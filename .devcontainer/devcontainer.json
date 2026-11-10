@@ -2,7 +2,8 @@
   "name": "Banc d'essai Toolocal Redact - Nextcloud 33, 34, 35",
   "image": "mcr.microsoft.com/devcontainers/base:ubuntu-24.04",
   "features": {
-    "ghcr.io/devcontainers/features/docker-in-docker:2": {}
+    "ghcr.io/devcontainers/features/docker-in-docker:2": {},
+    "ghcr.io/devcontainers/features/sshd:1": {}
   },
   "forwardPorts": [8033, 8034, 8035],
   "portsAttributes": {
