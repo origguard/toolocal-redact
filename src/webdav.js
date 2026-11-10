@@ -33,6 +33,7 @@
 import { getClient, getDefaultPropfind, resultToNode } from '@nextcloud/files/dav'
 import { emit } from '@nextcloud/event-bus'
 import { enTampon, estPdf, memesOctets } from './tampon.js'
+import { L } from './langue.js'
 
 /* Un seul client pour la session : il porte l'URL de l'instance et le jeton. */
 let client = null
@@ -80,7 +81,7 @@ async function nomLibre(node, suffixe) {
     const chemin = joindre(node.root, node.dirname, nom)
     if (!(await dav().exists(chemin))) return { nom, chemin }
   }
-  throw new Error('Trop de versions caviardées portent déjà ce nom.')
+  throw new Error(L('Trop de versions caviardées portent déjà ce nom.', 'Too many redacted versions already carry this name.'))
 }
 
 /**
@@ -108,7 +109,7 @@ export async function ecrire(node, octets, suffixe = '-redacted') {
     try { await dav().deleteFile(chemin) } catch (e) {
       console.warn('[Toolocal Redact] Fichier non conforme, retrait impossible :', e)
     }
-    throw new Error('Le fichier enregistré ne correspond pas au PDF produit. Il a été retiré ; le document d’origine n’a pas été modifié.')
+    throw new Error(L('Le fichier enregistré ne correspond pas au PDF produit. Il a été retiré.', 'The file saved does not match the PDF produced. It has been removed.'))
   }
 
   /* Faire apparaître le fichier dans la vue sans recharger la page.
@@ -135,12 +136,12 @@ export async function ecrire(node, octets, suffixe = '-redacted') {
 export function messageErreur(e) {
   const statut = e?.status ?? e?.response?.status
   switch (statut) {
-    case 401: return 'Session expirée. Rechargez la page, puis recommencez.'
-    case 403: return 'Vous n’avez pas le droit d’écrire dans ce dossier.'
-    case 404: return 'Le document d’origine est introuvable. A-t-il été déplacé ?'
-    case 412: return 'Un fichier porte déjà ce nom. Relancez : un autre nom sera choisi.'
-    case 507: return 'Quota de stockage atteint. Libérez de l’espace, puis recommencez.'
-    default:  return `L’enregistrement a échoué${statut ? ` (code ${statut})` : ''}. `
-                   + 'Le document d’origine n’a pas été modifié.'
+    case 401: return L('Session expirée. Rechargez la page, puis recommencez.', 'Session expired. Reload the page, then try again.')
+    case 403: return L('Vous n’avez pas le droit d’écrire dans ce dossier.', 'You are not allowed to write in this folder.')
+    case 404: return L('Le document d’origine est introuvable. A-t-il été déplacé ?', 'The original document cannot be found. Has it been moved?')
+    case 412: return L('Un fichier porte déjà ce nom. Relancez : un autre nom sera choisi.', 'A file already has this name. Try again: another name will be chosen.')
+    case 507: return L('Quota de stockage atteint. Libérez de l’espace, puis recommencez.', 'Storage quota reached. Free some space, then try again.')
+    default:  return L(`L’enregistrement a échoué${statut ? ` (code ${statut})` : ''}. `, `Saving failed${statut ? ` (code ${statut})` : ''}. `)
+                   + L('Le document d’origine n’a pas été modifié.', 'The original document was not changed.')
   }
 }

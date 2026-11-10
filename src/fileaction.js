@@ -6,11 +6,12 @@
  */
 import { registerFileAction, Permission } from '@nextcloud/files'
 import { openRedactor } from './redact-view.js'
+import { L } from './langue.js'
 import redactSvg from '../img/redact.svg?raw'
 
 const actionConfig = {
   id: 'toolocal-redact',
-  displayName: () => 'Caviarder',
+  displayName: () => L('Caviarder', 'Redact'),
   iconSvgInline: () => redactSvg,
 
   // Détection PDF universelle : vérifie que le document est un PDF lisible (Permission.READ)
@@ -57,7 +58,7 @@ if (typeof window !== 'undefined' && window.OCA && window.OCA.Files && window.OC
   try {
     window.OCA.Files.fileActions.registerAction({
       name: 'toolocal-redact',
-      displayName: 'Caviarder',
+      displayName: L('Caviarder', 'Redact'),
       mime: 'application/pdf',
       permissions: Permission.READ,
       icon: '',

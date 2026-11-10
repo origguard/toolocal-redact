@@ -2,6 +2,7 @@
 # Sonde de bout en bout du dialogue de caviardage, dans un vrai Chromium.
 #
 #   bash banc-essai/sonde/sonder.sh <port> <light|dark> [appliquer]
+#   SONDE_LOCALE=en-US bash … pour un navigateur en anglais (défaut : fr-FR)
 #
 # À lancer dans le Codespace, le banc monté (banc-essai/monter.sh). Elle relève
 # ce que le dialogue affiche réellement : limites présentes et visibles,
@@ -25,5 +26,6 @@ cp "$ICI/sonde.mjs" /tmp/sonde/sonde.mjs
   sh -c 'npm init -y >/dev/null && npm i playwright@1.49.1 >/dev/null 2>&1'
 docker run --rm --network host \
   -e CODESPACE_NAME="$NOM" -e GITHUB_CODESPACES_PORT_FORWARDING_DOMAIN=app.github.dev \
+  -e SONDE_LOCALE="${SONDE_LOCALE:-fr-FR}" \
   -v /tmp/sonde:/tmp/sonde -v "$BANC/.env:/workspaces/toolocal-redact/banc-essai/.env:ro" \
   -w /tmp/sonde "$IMAGE" node sonde.mjs "$@"

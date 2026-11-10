@@ -24,8 +24,11 @@
 ### Aucune lettre ne depasse d une zone noircie
 - Les zones etaient calculees en supposant toutes les lettres de meme largeur : la premiere ou la derniere lettre d un mot caviarde pouvait rester lisible (le « F » d un IBAN, le « c » d une adresse). L etendue est maintenant la reunion de deux estimations, chasse fixe et chasse variable, elargie d une marge. Une zone deborde donc un peu sur le texte voisin : c est voulu.
 
-### Tout le dialogue est en francais
-- Les libelles restes en anglais (« Redact », « Apply Redaction », « Cancel », « Match case », « Saved as ») sont en francais, comme le reste du dialogue. L application ne livre pas de fichiers de traduction : elle s affiche en francais quelle que soit la langue de l instance.
+### Le dialogue existe en francais et en anglais
+- Les libelles restes en anglais au milieu d un dialogue francais sont corriges : tout le dialogue, l action du menu Fichiers et les messages existent dans les deux langues.
+- La langue est celle de l utilisateur dans Nextcloud : francais si elle commence par « fr », anglais dans tous les autres cas.
+- L application ne livre pas de fichiers de traduction. Chaque libelle est ecrit dans le code dans les deux langues, cote a cote (`src/langue.js`), et un test refuse un libelle qui manquerait dans l une d elles.
+- Les profils rapides n ajoutent que des mots francais ; en anglais, leur bouton le dit.
 
 ### Dialogue : limites affichees, lisibilite, garde-fous
 Defauts constates a l'essai humain sur Nextcloud 33, avant toute publication.

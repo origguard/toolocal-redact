@@ -12,7 +12,7 @@ const BASE = `https://${HOST}`
 const out = { port, scheme, console: [], erreurs: [], refus: [] }
 
 const browser = await chromium.launch()
-const ctx = await browser.newContext({ viewport: { width: 1400, height: 900 }, colorScheme: scheme, locale: 'fr-FR' })
+const ctx = await browser.newContext({ viewport: { width: 1400, height: 900 }, colorScheme: scheme, locale: process.env.SONDE_LOCALE || 'fr-FR' })
 await ctx.route(`${BASE}/**`, async (route) => {
   try {
     const r = await route.fetch({ url: route.request().url().replace(BASE, `http://127.0.0.1:${port}`), maxRedirects: 0 })
@@ -97,6 +97,16 @@ const releve = () => page.evaluate(() => {
   }
 })
 
+out.langue = await page.evaluate(() => {
+  const o = document.getElementById('toolocal-redact-overlay')
+  return {
+    page: document.documentElement.lang,
+    titre: o.querySelector('h2').textContent,
+    bouton: o.querySelector('#tl-btn-apply').textContent,
+    annuler: o.querySelector('#tl-btn-cancel').textContent,
+    relecture: o.querySelector('#tl-chk-relu').closest('label').textContent.trim(),
+  }
+})
 out.ouverture = await releve()
 await page.screenshot({ path: `/tmp/sonde/dialogue-${port}-${scheme}.png` })
 

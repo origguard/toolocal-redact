@@ -7,8 +7,8 @@
  *
  * ZÉRO TIERS · AUCUN SOUS-TRAITANT · AUCUN DPA REQUIS.
  */
-// Les libellés sont écrits en français dans le code : l'application ne livre
-// pas de fichiers de traduction, et un dialogue à moitié traduit se lit mal.
+// Chaque libellé est écrit dans le code en français et en anglais, côte à
+// côte (src/langue.js) : l'application ne livre pas de fichiers de traduction.
 
 // Moteur de caviardage local souverain
 import {
@@ -20,6 +20,7 @@ import {
 } from './engine/redact.js'
 
 import { lire, ecrire, messageErreur } from './webdav.js'
+import { L, compte } from './langue.js'
 
 
 function showToast(msg, type = 'success') {
@@ -78,7 +79,7 @@ export async function openRedactor(file, view = null) {
 
     const before = inspectPdf(bytes)
     if (before.encrypted) {
-      notifyError('Ce PDF est protégé par un mot de passe : il ne peut pas être caviardé ici.')
+      notifyError(L('Ce PDF est protégé par un mot de passe : il ne peut pas être caviardé ici.', 'This PDF is password-protected: it cannot be redacted here.'))
       return
     }
 
@@ -90,21 +91,23 @@ export async function openRedactor(file, view = null) {
     // Vérification d'intégrité : révision unique, non récupérable
     const checks = inspectPdf(out)
     if (checks.incrementalRevisions > 1) {
-      notifyError('Le fichier produit garde une version antérieure récupérable. Rien n’a été enregistré.')
+      notifyError(L('Le fichier produit garde une version antérieure récupérable. Rien n’a été enregistré.', 'The file produced keeps a recoverable earlier version. Nothing was saved.'))
       return
     }
 
     const { nom: savedName } = await ecrire(file, out, '-redacted')
     // Le message de fin redit ce qui a été fait et ce qui reste à la charge
     // de la personne : l'outil n'a noirci que ce qui a été détecté ou tracé.
-    const fait = bilan.zones > 1 ? bilan.zones + ' zones noircies' : bilan.zones + ' zone noircie'
-    const scan = bilan.sansTexte > 0 ? ' Attention : ' + bilan.sansTexte + ' page(s) sans texte lisible, non analysée(s).' : ''
-    notifySuccess('Enregistré sous ' + savedName + ' — ' + fait + '.' + scan + ' Relisez le fichier avant de le transmettre.')
+    const fait = compte(bilan.zones, ['zone noircie', 'zones noircies'], ['area blacked out', 'areas blacked out'])
+    const scan = bilan.sansTexte > 0
+      ? L(' Attention : ' + bilan.sansTexte + ' page(s) sans texte lisible, non analysée(s).', ' Warning: ' + bilan.sansTexte + ' page(s) with no readable text, not analysed.')
+      : ''
+    notifySuccess(L('Enregistré sous ', 'Saved as ') + savedName + ' — ' + fait + '.' + scan + L(' Relisez le fichier avant de le transmettre.', ' Review the file before you send it.'))
   } catch (e) {
     const statut = e?.status ?? e?.response?.status
     notifyError(statut
       ? messageErreur(e)
-      : 'Le caviardage a échoué : ' + (e && e.message ? e.message : 'erreur inconnue') + ' Le document d’origine n’a pas été modifié.')
+      : L('Le caviardage a échoué : ', 'Redaction failed: ') + (e && e.message ? e.message : L('erreur inconnue', 'unknown error')) + L(' Le document d’origine n’a pas été modifié.', ' The original document was not changed.'))
   }
 }
 
@@ -266,84 +269,84 @@ async function presentEditor(bytes) {
       <div class="tl-modale">
         <div class="tl-entete">
           <div>
-            <h2>Caviarder un document PDF</h2>
-            <div class="tl-sous-titre">Traitement dans votre navigateur · aucun envoi à un tiers</div>
+            <h2>${L('Caviarder un document PDF', 'Redact a PDF document')}</h2>
+            <div class="tl-sous-titre">${L('Traitement dans votre navigateur · aucun envoi à un tiers', 'Processed in your browser · nothing is sent to a third party')}</div>
           </div>
-          <button type="button" id="tl-btn-close" class="tl-btn tl-fermer" aria-label="Fermer sans caviarder">✕</button>
+          <button type="button" id="tl-btn-close" class="tl-btn tl-fermer" aria-label="${L('Fermer sans caviarder', 'Close without redacting')}">✕</button>
         </div>
 
         <div class="tl-corps">
           <div class="tl-volet">
             <div class="tl-limites" id="tl-limites">
-              <strong>⚠️ Limites de l'outil — à lire avant de caviarder</strong>
+              <strong>⚠️ ${L(`Limites de l'outil — à lire avant de caviarder`, `Limits of this tool — read before redacting`)}</strong>
               <ul>
-                <li><strong>Recherche littérale :</strong> un nom abrégé ou coupé en fin de ligne passe.</li>
-                <li><strong>Pas d'OCR :</strong> un texte présent seulement en image (page scannée, photo, tampon) n'est pas détecté.</li>
-                <li><strong>L'outil ne juge pas,</strong> il applique vos règles.</li>
-                <li><strong>Relecture humaine indispensable</strong> avant toute transmission.</li>
-                <li>Le jeu de test est le nôtre : vos documents réels peuvent présenter des cas non rencontrés.</li>
+                <li><strong>${L(`Recherche littérale :`, `Literal search:`)}</strong> ${L(`un nom abrégé ou coupé en fin de ligne passe.`, `an abbreviated name, or one split across two lines, is missed.`)}</li>
+                <li><strong>${L(`Pas d'OCR :`, `No OCR:`)}</strong> ${L(`un texte présent seulement en image (page scannée, photo, tampon) n'est pas détecté.`, `text that exists only as an image (scanned page, photo, stamp) is not detected.`)}</li>
+                <li><strong>${L(`L'outil ne juge pas,`, `The tool does not judge:`)}</strong> ${L(`il applique vos règles.`, `it applies your rules.`)}</li>
+                <li><strong>${L(`Relecture humaine indispensable`, `Human review is essential`)}</strong> ${L(`avant toute transmission.`, `before anything is sent.`)}</li>
+                <li>${L(`Le jeu de test est le nôtre : vos documents réels peuvent présenter des cas non rencontrés.`, `The test set is ours: your real documents may contain cases we have not met.`)}</li>
               </ul>
             </div>
 
             <div>
-              <label class="tl-titre" for="tl-terms">Termes à caviarder</label>
-              <textarea id="tl-terms" rows="4" placeholder="Un terme par ligne, par exemple :&#10;Jean Dupont&#10;Dossier 2026-114"></textarea>
-              <p class="tl-aide">Termes exacts, un par ligne ou séparés par des virgules. Les expressions régulières /motif/i sont acceptées.</p>
+              <label class="tl-titre" for="tl-terms">${L('Termes à caviarder', 'Terms to redact')}</label>
+              <textarea id="tl-terms" rows="4" placeholder="${L('Un terme par ligne, par exemple :&#10;Jean Dupont&#10;Dossier 2026-114', 'One term per line, for example:&#10;John Smith&#10;Case 2026-114')}"></textarea>
+              <p class="tl-aide">${L('Termes exacts, un par ligne ou séparés par des virgules. Les expressions régulières /motif/i sont acceptées.', 'Exact terms, one per line or separated by commas. Regular expressions /pattern/i are accepted.')}</p>
             </div>
 
             <div class="tl-carte">
-              <div class="tl-titre" style="margin:0;">Détection automatique</div>
+              <div class="tl-titre" style="margin:0;">${L('Détection automatique', 'Automatic detection')}</div>
               <label class="tl-case">
                 <input type="checkbox" id="tl-chk-sensitive" checked>
-                <span><strong>Mentions sensibles :</strong> Confidentiel, Secret, et les termes anglais Creditor, Statutory Work, Forbidden…</span>
+                <span><strong>${L('Mentions sensibles :', 'Sensitive markings:')}</strong> ${L('Confidentiel, Secret, et les termes anglais Creditor, Statutory Work, Forbidden…', 'Creditor, Statutory Work, Forbidden, and the French terms Confidentiel, Secret…')}</span>
               </label>
               <label class="tl-case">
                 <input type="checkbox" id="tl-chk-gdpr" checked>
-                <span><strong>Données personnelles :</strong> téléphones, courriels, IBAN, cartes bancaires, numéros de sécurité sociale…</span>
+                <span><strong>${L('Données personnelles :', 'Personal data:')}</strong> ${L('téléphones, courriels, IBAN, cartes bancaires, numéros de sécurité sociale…', 'phone numbers, email addresses, IBANs, bank card numbers, French social security numbers…')}</span>
               </label>
-              <div class="tl-compte" id="tl-detected-badge" aria-live="polite">Analyse du document en cours…</div>
+              <div class="tl-compte" id="tl-detected-badge" aria-live="polite">${L('Analyse du document en cours…', 'Analysing the document…')}</div>
               <div class="tl-alerte" id="tl-sans-texte" hidden></div>
             </div>
 
             <div>
-              <span class="tl-titre">Profils rapides</span>
+              <span class="tl-titre">${L('Profils rapides', 'Quick profiles')}</span>
               <div class="tl-grille">
-                <button type="button" class="tl-btn tl-preset" data-preset="siret, capital, sarl, sas, gérant, rcs, contrat">Contrat</button>
-                <button type="button" class="tl-btn tl-preset" data-preset="iban, bic, tva, compte, solde, facture, virement">Facture / IBAN</button>
-                <button type="button" class="tl-btn tl-preset" data-preset="patient, diagnostic, sécurité sociale, nir, ordonnance, consultation">Médical</button>
-                <button type="button" class="tl-btn tl-preset" data-preset="parquet, rg, déposant, pièce n°, adversaire, audience">Procédure</button>
+                <button type="button" class="tl-btn tl-preset" data-preset="siret, capital, sarl, sas, gérant, rcs, contrat">${L('Contrat', 'Contract (French terms)')}</button>
+                <button type="button" class="tl-btn tl-preset" data-preset="iban, bic, tva, compte, solde, facture, virement">${L('Facture / IBAN', 'Invoice / IBAN (French terms)')}</button>
+                <button type="button" class="tl-btn tl-preset" data-preset="patient, diagnostic, sécurité sociale, nir, ordonnance, consultation">${L('Médical', 'Medical (French terms)')}</button>
+                <button type="button" class="tl-btn tl-preset" data-preset="parquet, rg, déposant, pièce n°, adversaire, audience">${L('Procédure', 'Litigation (French terms)')}</button>
               </div>
-              <p class="tl-aide">Un profil ajoute des mots à la liste ci-dessus. Il ne reconnaît ni les noms ni les montants.</p>
+              <p class="tl-aide">${L('Un profil ajoute des mots à la liste ci-dessus. Il ne reconnaît ni les noms ni les montants.', 'A profile adds French words to the list above. It recognises neither names nor amounts.')}</p>
             </div>
 
             <div>
-              <span class="tl-titre">Zones tracées à la main</span>
-              <p class="tl-aide" style="margin:0 0 8px 0;">Tracez un rectangle à la souris sur l'aperçu pour noircir ce que la détection n'a pas vu.</p>
+              <span class="tl-titre">${L('Zones tracées à la main', 'Areas drawn by hand')}</span>
+              <p class="tl-aide" style="margin:0 0 8px 0;">${L(`Tracez un rectangle à la souris sur l'aperçu pour noircir ce que la détection n'a pas vu.`, `Draw a rectangle on the preview with the mouse to black out what detection did not catch.`)}</p>
               <div class="tl-ligne">
-                <span class="tl-compte" id="tl-box-count">0 zone tracée</span>
-                <button type="button" id="tl-btn-clear-boxes" class="tl-btn">Effacer les zones tracées</button>
+                <span class="tl-compte" id="tl-box-count">${compte(0, ['zone tracée', 'zones tracées'], ['area drawn', 'areas drawn'])}</span>
+                <button type="button" id="tl-btn-clear-boxes" class="tl-btn">${L('Effacer les zones tracées', 'Clear drawn areas')}</button>
               </div>
             </div>
 
             <div>
               <label class="tl-case" style="margin-bottom:10px;">
                 <input type="checkbox" id="tl-match-case">
-                <span>Respecter les majuscules et minuscules</span>
+                <span>${L('Respecter les majuscules et minuscules', 'Match upper and lower case')}</span>
               </label>
-              <label class="tl-titre" for="tl-scale">Qualité du fichier produit</label>
+              <label class="tl-titre" for="tl-scale">${L('Qualité du fichier produit', 'Quality of the file produced')}</label>
               <select id="tl-scale">
-                <option value="2" selected>Élevée (environ 150 à 200 DPI)</option>
-                <option value="3">Impression (environ 300 DPI)</option>
+                <option value="2" selected>${L('Élevée (environ 150 à 200 DPI)', 'High (about 150 to 200 DPI)')}</option>
+                <option value="3">${L('Impression (environ 300 DPI)', 'Print (about 300 DPI)')}</option>
               </select>
             </div>
           </div>
 
           <div class="tl-apercu">
             <div class="tl-barre">
-              <button type="button" id="tl-prev-page" class="tl-btn">◀ Précédente</button>
-              <span class="tl-compte" id="tl-page-info">Page 1 sur ${numPages || 1}</span>
-              <button type="button" id="tl-next-page" class="tl-btn">Suivante ▶</button>
-              <div class="tl-legende">Aperçu : chaque zone encadrée de rouge sera noircie définitivement dans le fichier produit. Ce qui n'est pas encadré restera lisible.</div>
+              <button type="button" id="tl-prev-page" class="tl-btn">◀ ${L('Précédente', 'Previous')}</button>
+              <span class="tl-compte" id="tl-page-info">${L('Page 1 sur ', 'Page 1 of ')}${numPages || 1}</span>
+              <button type="button" id="tl-next-page" class="tl-btn">${L('Suivante', 'Next')} ▶</button>
+              <div class="tl-legende">${L(`Aperçu : chaque zone encadrée de rouge sera noircie définitivement dans le fichier produit. Ce qui n'est pas encadré restera lisible.`, `Preview: every area outlined in red will be blacked out permanently in the file produced. Anything not outlined will stay readable.`)}</div>
             </div>
             <div class="tl-defile" id="tl-defile">
               <div class="tl-alerte" id="tl-apercu-erreur" hidden></div>
@@ -355,13 +358,13 @@ async function presentEditor(bytes) {
         <div class="tl-pied">
           <label class="tl-case" style="flex:1; min-width:280px; font-weight:600;">
             <input type="checkbox" id="tl-chk-relu">
-            <span>J'ai relu l'aperçu de chaque page, et je relirai le fichier produit avant de le transmettre.</span>
+            <span>${L(`J'ai relu l'aperçu de chaque page, et je relirai le fichier produit avant de le transmettre.`, `I have reviewed the preview of every page, and I will review the file produced before I send it.`)}</span>
           </label>
           <div style="display:flex; flex-direction:column; gap:6px; align-items:flex-end;">
             <div class="tl-etat" id="tl-etat" aria-live="polite"></div>
             <div style="display:flex; gap:10px;">
-              <button type="button" id="tl-btn-cancel" class="tl-btn">Annuler</button>
-              <button type="button" id="tl-btn-apply" class="tl-btn tl-btn-principal" disabled>Caviarder</button>
+              <button type="button" id="tl-btn-cancel" class="tl-btn">${L('Annuler', 'Cancel')}</button>
+              <button type="button" id="tl-btn-apply" class="tl-btn tl-btn-principal" disabled>${L('Caviarder', 'Redact')}</button>
             </div>
           </div>
         </div>
@@ -372,7 +375,7 @@ async function presentEditor(bytes) {
     const $ = (sel) => overlay.querySelector(sel)
     const feuille = $('#tl-feuille')
     const [previewCanvas, overlayCanvas] = feuille.querySelectorAll('canvas')
-    const pluriel = (n, un, plusieurs) => `${n} ${n > 1 ? plusieurs : un}`
+    const detectees = (n) => compte(n, ['zone détectée', 'zones détectées'], ['area detected', 'areas detected'])
 
     function getCurrentOptions() {
       return {
@@ -396,10 +399,10 @@ async function presentEditor(bytes) {
     // Dit pourquoi le bouton est bloqué, plutôt que de le laisser gris sans un mot.
     function majEtat() {
       let raison = ''
-      if (!pdfDoc) raison = 'Aperçu impossible : caviardage bloqué.'
-      else if (!bilan) raison = 'Analyse du document en cours…'
-      else if (bilan.total === 0 && manualBoxes.length === 0) raison = 'Rien à caviarder : aucune zone détectée ni tracée.'
-      else if (!$('#tl-chk-relu').checked) raison = 'Cochez la case de relecture pour caviarder.'
+      if (!pdfDoc) raison = L('Aperçu impossible : caviardage bloqué.', 'No preview: redaction is blocked.')
+      else if (!bilan) raison = L('Analyse du document en cours…', 'Analysing the document…')
+      else if (bilan.total === 0 && manualBoxes.length === 0) raison = L('Rien à caviarder : aucune zone détectée ni tracée.', 'Nothing to redact: no area detected or drawn.')
+      else if (!$('#tl-chk-relu').checked) raison = L('Cochez la case de relecture pour caviarder.', 'Tick the review box to redact.')
       $('#tl-btn-apply').disabled = raison !== ''
       $('#tl-etat').textContent = raison
     }
@@ -408,28 +411,28 @@ async function presentEditor(bytes) {
       const badge = $('#tl-detected-badge')
       const alerte = $('#tl-sans-texte')
       if (!pdfDoc) {
-        badge.textContent = 'Détection impossible : le document n\'a pas pu être lu.'
+        badge.textContent = L('Détection impossible : le document n’a pas pu être lu.', 'Detection impossible: the document could not be read.')
         alerte.hidden = true
       } else if (!bilan) {
-        badge.textContent = 'Analyse du document en cours…'
+        badge.textContent = L('Analyse du document en cours…', 'Analysing the document…')
       } else {
         const ici = bilan.parPage.get(currentPage) || 0
         badge.textContent = numPages > 1
-          ? `${pluriel(bilan.total, 'zone détectée', 'zones détectées')} dans le document, dont ${ici} sur cette page`
-          : pluriel(bilan.total, 'zone détectée', 'zones détectées')
+          ? detectees(bilan.total) + L(` dans le document, dont ${ici} sur cette page`, ` in the document, ${ici} of them on this page`)
+          : detectees(bilan.total)
         if (bilan.sansTexte.length) {
           const liste = bilan.sansTexte.length > 12
             ? `${bilan.sansTexte.slice(0, 12).join(', ')}… (${bilan.sansTexte.length} pages)`
             : bilan.sansTexte.join(', ')
           alerte.textContent = bilan.sansTexte.length === numPages
-            ? 'Ce document ne contient aucun texte lisible (scan ou image). La détection automatique n\'y voit rien : tracez chaque zone à la main.'
-            : `Aucun texte lisible page ${liste} (scan ou image). La détection automatique n'y voit rien : tracez les zones à la main.`
+            ? L('Ce document ne contient aucun texte lisible (scan ou image). La détection automatique n’y voit rien : tracez chaque zone à la main.', 'This document contains no readable text (scan or image). Automatic detection sees nothing in it: draw every area by hand.')
+            : L(`Aucun texte lisible page ${liste} (scan ou image). La détection automatique n'y voit rien : tracez les zones à la main.`, `No readable text on page ${liste} (scan or image). Automatic detection sees nothing there: draw the areas by hand.`)
           alerte.hidden = false
         } else {
           alerte.hidden = true
         }
       }
-      $('#tl-box-count').textContent = pluriel(manualBoxes.length, 'zone tracée', 'zones tracées')
+      $('#tl-box-count').textContent = compte(manualBoxes.length, ['zone tracée', 'zones tracées'], ['area drawn', 'areas drawn'])
       majEtat()
     }
 
@@ -483,7 +486,7 @@ async function presentEditor(bytes) {
       file = file.then(async () => {
         if (!pdfDoc) return
         currentPage = n
-        $('#tl-page-info').textContent = `Page ${n} sur ${numPages}`
+        $('#tl-page-info').textContent = L(`Page ${n} sur ${numPages}`, `Page ${n} of ${numPages}`)
         $('#tl-prev-page').disabled = n <= 1
         $('#tl-next-page').disabled = n >= numPages
         const { page, textMap } = await donneesPage(n)
@@ -509,7 +512,7 @@ async function presentEditor(bytes) {
       bilan = null
       feuille.hidden = true
       const e = $('#tl-apercu-erreur')
-      e.textContent = 'L\'aperçu de ce document n\'a pas pu être affiché. Sans aperçu, rien ne peut être relu : le caviardage est bloqué.'
+      e.textContent = L('L’aperçu de ce document n’a pas pu être affiché. Sans aperçu, rien ne peut être relu : le caviardage est bloqué.', 'The preview of this document could not be displayed. Without a preview nothing can be reviewed: redaction is blocked.')
       e.hidden = false
       majCompteurs()
     }
