@@ -159,6 +159,59 @@ export async function extractPageTextMap(page) {
   return { fullText, charMap, items }
 }
 
+/* Largeur relative d'un caractère dans une police à chasse variable de type
+   Helvetica / Arial (millièmes de cadratin). PDF.js donne la largeur d'un
+   morceau de texte entier, pas celle de chaque lettre : il faut l'estimer. */
+function chasse(car) {
+  if (" .,:;!|'ijl".includes(car)) return 250
+  if ('ftIr()[]-/"'.includes(car)) return 310
+  if ('mMW@%'.includes(car)) return 880
+  if (car === 'w') return 720
+  if (car >= '0' && car <= '9') return 556
+  if (car >= 'A' && car <= 'Z') return 690
+  if (car.toLowerCase() !== car) return 690 // capitales accentuées
+  return 530
+}
+
+/**
+ * Étendue horizontale, dans un morceau de texte de largeur connue, des
+ * caractères `debut` à `fin` inclus.
+ *
+ * Deux estimations sont faites — chasse fixe (exacte pour une police à chasse
+ * fixe) et chasse variable (proche pour Helvetica, Arial et voisines) — et
+ * c'est leur réunion, élargie d'une marge, qui est rendue. Supposer une chasse
+ * fixe partout laissait dépasser la première ou la dernière lettre d'un mot
+ * caviardé. Noircir un peu trop est sans conséquence ; laisser lire une lettre
+ * ne l'est pas.
+ *
+ * @param {string} texte Le morceau de texte entier
+ * @param {number} largeur Sa largeur, en unités de page
+ * @param {number} debut Indice du premier caractère à couvrir
+ * @param {number} fin Indice du dernier caractère à couvrir
+ * @returns {{ de: number, a: number }} Décalages depuis le début du morceau
+ */
+export function etendueHorizontale(texte, largeur, debut, fin) {
+  if (typeof texte !== 'string' || texte.length === 0) throw new TypeError('Texte attendu, non vide.')
+  if (!Number.isFinite(largeur) || largeur < 0) throw new RangeError('Largeur invalide.')
+  if (!Number.isInteger(debut) || !Number.isInteger(fin) || debut < 0 || fin < debut || fin >= texte.length) {
+    throw new RangeError('Indices hors du texte.')
+  }
+  const fixe = largeur / texte.length
+  let total = 0
+  let avant = 0
+  let jusqua = 0
+  for (let i = 0; i < texte.length; i++) {
+    if (i === debut) avant = total
+    total += chasse(texte[i])
+    if (i === fin) jusqua = total
+  }
+  const marge = fixe * 0.6
+  return {
+    de: Math.min(debut * fixe, largeur * avant / total) - marge,
+    a: Math.max((fin + 1) * fixe, largeur * jusqua / total) + marge,
+  }
+}
+
 /**
  * Calcule l'ensemble des boîtes de caviardage pour une page donnée
  * en fonction des termes recherchés et des profils activés.
@@ -263,12 +316,12 @@ export function calculateTextMatchBoxes(page, vp, textMap, options = {}) {
         const offsets = data.offsets
         if (!it.str || !it.str.length) continue
 
-        const charW = (it.width || 0) / it.str.length
         const minOffset = Math.min(...offsets)
         const maxOffset = Math.max(...offsets)
 
-        const x1 = it.transform[4] + minOffset * charW
-        const x2 = it.transform[4] + (maxOffset + 1) * charW
+        const etendue = etendueHorizontale(it.str, it.width || 0, minOffset, maxOffset)
+        const x1 = it.transform[4] + etendue.de
+        const x2 = it.transform[4] + etendue.a
 
         const fontSize = Math.hypot(it.transform[2], it.transform[3]) || it.height || 12
         const yBase = it.transform[5]

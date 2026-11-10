@@ -4,6 +4,7 @@
    PDF. Ce test passe les octets à la fonction réelle de la bibliothèque. */
 import assert from 'node:assert/strict'
 import { enTampon, estPdf, memesOctets } from '../src/tampon.js'
+import { etendueHorizontale } from '../src/engine/redact.js'
 import { requestDataToFetchBody } from '../node_modules/webdav/dist/node/tools/body.js'
 
 const pdf = new TextEncoder().encode('%PDF-1.7\n1 0 obj\n<<>>\nendobj\n%%EOF\n')
@@ -47,6 +48,38 @@ cas('memesOctets distingue une longueur ou un octet différent', () => {
   assert.equal(memesOctets(pdf, autre), false)
   assert.equal(memesOctets(pdf, pdf.subarray(1)), false)
   assert.equal(memesOctets(pdf, null), false)
+})
+
+console.log('\nÉtendue d’une boîte de caviardage\n')
+
+cas('rejette un texte vide, une largeur ou des indices invalides', () => {
+  assert.throws(() => etendueHorizontale('', 10, 0, 0), TypeError)
+  assert.throws(() => etendueHorizontale(null, 10, 0, 0), TypeError)
+  assert.throws(() => etendueHorizontale('abc', NaN, 0, 0), RangeError)
+  assert.throws(() => etendueHorizontale('abc', 10, 2, 1), RangeError)
+  assert.throws(() => etendueHorizontale('abc', 10, 0, 3), RangeError)
+  assert.throws(() => etendueHorizontale('abc', 10, -1, 1), RangeError)
+})
+cas('couvre toujours l’estimation à chasse fixe, marge en plus', () => {
+  const texte = 'IBAN : FR7630006000011234567890189'
+  const largeur = 300
+  const fixe = largeur / texte.length
+  for (let d = 0; d < texte.length; d++) for (let f = d; f < texte.length; f++) {
+    const e = etendueHorizontale(texte, largeur, d, f)
+    assert.ok(e.de < d * fixe && e.a > (f + 1) * fixe, `${d}-${f}`)
+  }
+})
+cas('après des caractères étroits, la boîte commence plus tôt qu’à chasse fixe', () => {
+  const texte = 'IBAN : FR7630006000011234567890189'
+  const fixe = 300 / texte.length
+  const e = etendueHorizontale(texte, 300, 7, texte.length - 1)
+  assert.ok(e.de < 7 * fixe - fixe, 'le F de FR76 doit être couvert')
+})
+cas('avant des caractères étroits, la boîte finit plus tard qu’à chasse fixe', () => {
+  const texte = 'Work illicit'
+  const fixe = 120 / texte.length
+  const e = etendueHorizontale(texte, 120, 0, 3)
+  assert.ok(e.a > 4 * fixe + fixe)
 })
 
 console.log(`\n  ${n} contrôles passés.\n`)

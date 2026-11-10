@@ -1,4 +1,4 @@
-﻿# Changelog
+# Changelog
 
 ## 0.3.0 — 2026-11-10
 
@@ -20,6 +20,9 @@
 - **Defaut grave corrige avant publication.** Le fichier « -redacted.pdf » enregistre dans Nextcloud n etait pas un PDF : il contenait la liste des octets ecrite en JSON, et ne s ouvrait pas. Cause : la bibliotheque WebDAV n envoie tel quel qu un ArrayBuffer ; un Uint8Array y est serialise. Constate sur Nextcloud 33, 34 et 35 en relisant un fichier produit. Les donnees d origine n y figuraient pas en clair, mais l utilisateur n obtenait aucun document caviarde.
 - Les octets partent maintenant sous forme d ArrayBuffer, et l application **relit le fichier qu elle vient d ecrire** : s il n est pas, octet pour octet, le PDF produit, il est retire et l erreur est dite.
 - Test ajoute (`test/tampon.test.mjs`) contre la fonction reelle de la bibliotheque.
+
+### Aucune lettre ne depasse d une zone noircie
+- Les zones etaient calculees en supposant toutes les lettres de meme largeur : la premiere ou la derniere lettre d un mot caviarde pouvait rester lisible (le « F » d un IBAN, le « c » d une adresse). L etendue est maintenant la reunion de deux estimations, chasse fixe et chasse variable, elargie d une marge. Une zone deborde donc un peu sur le texte voisin : c est voulu.
 
 ### Dialogue : limites affichees, lisibilite, garde-fous
 Defauts constates a l'essai humain sur Nextcloud 33, avant toute publication.
