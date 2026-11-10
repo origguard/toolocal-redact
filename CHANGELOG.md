@@ -25,7 +25,7 @@ Defauts constates a l'essai humain sur Nextcloud 33, avant toute publication.
 - **Pages sans texte lisible signalees nommement** (scan, image) : la detection automatique n'y voit rien, il faut tracer a la main.
 - **Caviardage bloque, avec la raison ecrite**, tant qu'il n'y a rien a noircir, tant que l'apercu n'a pas pu s'afficher, et tant que la case de relecture n'est pas cochee. Auparavant on pouvait produire un fichier « -redacted » sans rien de noirci.
 - Le bouton « Tout caviarder », qui ne faisait rien de plus que « Appliquer », est retire.
-- Le message de fin donne le nombre de zones noircies et rappelle de relire le fichier avant de le transmettre.
+- Le message de fin donne le nombre de zones noircies et rappelle de relire le fichier avant de le transmettre. Il est affiche par l application elle-meme pendant quinze secondes : passe par l API de notification de Nextcloud, il n etait pas constate sur les versions 34 et 35.
 
 ### Perimetre
 - L'application fait une chose : caviarder un PDF. La suite Toolocal n'y est pas incluse et ne le sera pas ; seuls les motifs de detection des donnees personnelles sont communs, pas le code.

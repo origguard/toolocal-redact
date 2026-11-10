@@ -24,12 +24,16 @@ import { lire, ecrire, messageErreur } from './webdav.js'
 function showToast(msg, type = 'success') {
   if (typeof document === 'undefined') return
   const toast = document.createElement('div')
+  toast.className = 'toolocal-redact-message'
+  toast.setAttribute('role', 'status')
   toast.style.cssText = `
+    max-width: min(560px, calc(100vw - 48px));
+    line-height: 1.45;
     position: fixed;
     bottom: 24px;
     right: 24px;
     z-index: 100001;
-    background: ${type === 'success' ? '#059669' : '#dc2626'};
+    background: ${type === 'success' ? '#047857' : '#b91c1c'};
     color: #ffffff;
     padding: 12px 20px;
     border-radius: 8px;
@@ -46,15 +50,14 @@ function showToast(msg, type = 'success') {
   setTimeout(() => {
     toast.style.opacity = '0'
     setTimeout(() => toast.remove(), 300)
-  }, 4000)
+  }, 15000)
 }
 
+// Le message de fin porte le rappel de relecture : il est affiché par
+// l'application elle-même, de la même façon sur toutes les versions de
+// Nextcloud, plutôt que par une API de notification qui varie de l'une à l'autre.
 function notifySuccess(msg) {
-  if (typeof window !== 'undefined' && window.OC && window.OC.Notification && typeof window.OC.Notification.showTemporary === 'function') {
-    window.OC.Notification.showTemporary(msg)
-  } else {
-    showToast(msg, 'success')
-  }
+  showToast(msg, 'success')
 }
 
 function notifyError(msg) {
