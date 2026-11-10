@@ -1,6 +1,6 @@
 {
   "name": "toolocal_redact",
-  "version": "0.2.1",
+  "version": "0.3.0",
   "private": true,
   "type": "module",
   "description": "Redact PDFs in Nextcloud without sending them to a third party.",

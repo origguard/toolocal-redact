@@ -25,6 +25,21 @@ for (const forbidden of forbiddenFiles) {
 
 const infoXmlPath = path.join(root, 'appinfo', 'info.xml');
 const infoXml = fs.readFileSync(infoXmlPath, 'utf8');
+
+/* Les versions de Nextcloud sont LUES dans le manifeste, jamais recopiees ici.
+   Elles l'etaient auparavant, et le packager reecrivait donc en silence les
+   chiffres de submission-metadata.json et de RELEASE-NOTES.md : une correction
+   du manifeste se perdait au paquet suivant, sans aucun message. Le manifeste
+   est la seule source. */
+const depMatch = infoXml.match(/<nextcloud\s+min-version="(\d+)"\s+max-version="(\d+)"\s*\/>/);
+if (!depMatch) {
+  console.error('ERROR: cannot read <nextcloud min-version max-version> from info.xml');
+  process.exit(1);
+}
+const ncMin = Number(depMatch[1]);
+const ncMax = Number(depMatch[2]);
+const ncRange = ncMin === ncMax ? String(ncMin) : `${ncMin} to ${ncMax}`;
+const ncRangeFr = ncMin === ncMax ? String(ncMin) : `${ncMin} à ${ncMax}`;
 if (!infoXml.includes(`<version>${version}</version>`)) {
   console.error(`ERROR: info.xml version does not match package.json version (${version})`);
   process.exit(1);
@@ -36,7 +51,7 @@ if (fs.existsSync(distRoot)) {
 }
 fs.mkdirSync(targetAppDir, { recursive: true });
 
-const filesToCopy = ['README.md', 'COPYING', 'local-guard.json'];
+const filesToCopy = ['README.md', 'COPYING', 'CHANGELOG.md', 'local-guard.json'];
 const dirsToCopy = ['appinfo', 'img', 'js', 'lib'];
 
 for (const f of filesToCopy) {
@@ -165,8 +180,8 @@ const submissionPayload = {
     sha512: sha512
   },
   compatibility: {
-    min_nextcloud_version: 30,
-    max_nextcloud_version: 38,
+    min_nextcloud_version: ncMin,
+    max_nextcloud_version: ncMax,
     licence: "agpl"
   },
   generated_at: new Date().toISOString()
@@ -177,11 +192,11 @@ fs.writeFileSync(path.join(root, 'submission-metadata.json'), JSON.stringify(sub
 const releaseNotes = `# Toolocal Redact v${version} - Official Release
 
 ## Summary / Résumé
-- **EN**: Redact PDFs in Nextcloud without sending them to any third party. Strictly zero third-party sub-processors, zero external network requests. Compatible with Nextcloud Hub 30 to 38.
-- **FR**: Caviardez vos documents PDF directement dans Nextcloud sans aucun transfert vers des tiers. Zéro sous-traitant, zéro requête externe. Compatible avec Nextcloud Hub 30 à 38.
+- **EN**: Redact PDFs in Nextcloud without sending them to any third party. Strictly zero third-party sub-processors, zero external network requests. Compatible with Nextcloud Hub ${ncRange}.
+- **FR**: Caviardez vos documents PDF directement dans Nextcloud sans aucun transfert vers des tiers. Zéro sous-traitant, zéro requête externe. Compatible avec Nextcloud Hub ${ncRangeFr}.
 
 ## What's New in v${version}
-- **Complete compatibility with modern Nextcloud Hub (30 to 38+)**: PSR-14 \`LoadAdditionalScriptsEvent\` front-end registration.
+- **Complete compatibility with modern Nextcloud Hub (${ncRange})**: PSR-14 \`LoadAdditionalScriptsEvent\` front-end registration.
 - **Enhanced Sovereign Redaction Engine**:
   - Resilient multi-word term detection across complex PDF text-item splits and kerning.
   - Automatic GDPR / PII recognition (IBAN, Email, Phone numbers, French Social Security NIR).
