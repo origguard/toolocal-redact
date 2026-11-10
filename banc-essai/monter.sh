@@ -46,7 +46,10 @@ ARCHIVE_SHA="$(sed -n 's/^# archive-sha256: //p' "$MANIFESTE")"
 NB="$(grep -vc '^#' "$MANIFESTE" || true)"
 [ "$NB" -gt 0 ] || { mal "$MANIFESTE ne liste aucun fichier."; exit 1; }
 
-rm -rf app
+# Le dossier est vidé, jamais supprimé : il est monté dans les conteneurs, et
+# le supprimer laisserait un montage vide tant que ceux-ci tournent.
+mkdir -p "$APP"
+find "$APP" -mindepth 1 -delete
 mkdir -p "$APP"
 grep -v '^#' "$MANIFESTE" | while read -r _ chemin; do
   [ -f "$RACINE/$chemin" ] || { mal "Fichier de l'archive absent du dépôt : $chemin"; exit 1; }
