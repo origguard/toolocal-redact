@@ -65,6 +65,6 @@ son motif dans local-guard.json.
   <bugs>https://github.com/origguard/toolocal-redact/issues</bugs>
   <repository type="git">https://github.com/origguard/toolocal-redact.git</repository>
   <dependencies>
-    <nextcloud min-version="30" max-version="38"/>
+    <nextcloud min-version="33" max-version="35"/>
   </dependencies>
 </info>

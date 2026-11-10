@@ -1,11 +1,11 @@
 # Toolocal Redact v0.2.1 - Official Release
 
 ## Summary / Résumé
-- **EN**: Redact PDFs in Nextcloud without sending them to any third party. Strictly zero third-party sub-processors, zero external network requests. Compatible with Nextcloud Hub 30 to 38.
-- **FR**: Caviardez vos documents PDF directement dans Nextcloud sans aucun transfert vers des tiers. Zéro sous-traitant, zéro requête externe. Compatible avec Nextcloud Hub 30 à 38.
+- **EN**: Redact PDFs in Nextcloud without sending them to any third party. Strictly zero third-party sub-processors, zero external network requests. Compatible with Nextcloud Hub 33 to 35.
+- **FR**: Caviardez vos documents PDF directement dans Nextcloud sans aucun transfert vers des tiers. Zéro sous-traitant, zéro requête externe. Compatible avec Nextcloud Hub 33 à 35.
 
 ## What's New in v0.2.1
-- **Complete compatibility with modern Nextcloud Hub (30 to 38+)**: PSR-14 `LoadAdditionalScriptsEvent` front-end registration.
+- **Complete compatibility with modern Nextcloud Hub (33 to 35)**: PSR-14 `LoadAdditionalScriptsEvent` front-end registration.
 - **Enhanced Sovereign Redaction Engine**:
   - Resilient multi-word term detection across complex PDF text-item splits and kerning.
   - Automatic GDPR / PII recognition (IBAN, Email, Phone numbers, French Social Security NIR).
@@ -16,8 +16,8 @@
 
 ## Package Integrity & Cryptography
 - **Archive**: `toolocal_redact-0.2.1.tar.gz`
-- **SHA-256**: `7d562ff4bd4e76ff345bf143c5b2f90b839b664459b02d32ad23c5bd934e588e`
-- **SHA-512**: `ae1635995135e7942a014d0a5e302b0d847a7fedd5913fed89f08bf93cb1a74484296fd7fb96959ff52ce339512895764b948b20a51dbdf9f99e0528604eaab5`
+- **SHA-256**: `20cb462210096aa43a4121efdf1d97e8499a5f4d6b534d5e8efb2260798facf1`
+- **SHA-512**: `045a935467dc58d8ef26c9a32813c7096e5dbfaf4c4617e1dee03fd4c12bd63fed03dbd10efaa93f458f0670c02909feb083bc8ffac93ced3ac2f7252e203aae`
 - **RSA-SHA512 Signature**: See `toolocal_redact-0.2.1.tar.gz.sig`
 
 ## Installation

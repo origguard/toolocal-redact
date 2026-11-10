@@ -66,4 +66,4 @@ js/                           sortie de build : c'est ELLE qui est contrôlée
 local-guard.json              l'unique exception, avec son motif
 ```
 
-> **Attention aux versions.** Les API front de Nextcloud (`@nextcloud/files`, `registerFileAction`) évoluent d'une version majeure à l'autre. Ce squelette vise Nextcloud 30+. Vérifie contre la documentation de ta version cible avant de coder — c'est le premier endroit où ce genre de squelette se périme.
+> **Attention aux versions.** Les API front de Nextcloud (`@nextcloud/files`, `registerFileAction`) évoluent d'une version majeure à l'autre. Ce squelette vise Nextcloud 33 à 35. Vérifie contre la documentation de ta version cible avant de coder — c'est le premier endroit où ce genre de squelette se périme.
