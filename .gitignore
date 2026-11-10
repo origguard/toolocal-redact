@@ -16,3 +16,8 @@ submission-metadata.json
 
 
 
+
+# Banc d'essai : mot de passe d'essai, app assemblee, trace locale
+banc-essai/.env
+banc-essai/app/
+banc-essai/trace-instances.txt

@@ -106,6 +106,31 @@ console.log(`2. Checksums generated:`);
 console.log(`   SHA256: ${sha256}`);
 console.log(`   SHA512: ${sha512.substring(0, 48)}...`);
 
+// 4b. Manifeste du contenu de l'archive, pour le banc d'essai
+/* banc-essai/monter.sh assemble l'application depuis le depot et exige que
+   chaque fichier ait l'empreinte relevee ici, dans l'archive qu'on signe. Le
+   banc essaie ainsi les octets de l'archive sans avoir besoin de la cle de
+   signature, qui ne quitte pas la machine de l'editeur. */
+const benchDir = path.join(root, 'banc-essai');
+if (fs.existsSync(benchDir)) {
+  const lister = (dir, prefixe = '') => fs.readdirSync(dir, { withFileTypes: true })
+    .flatMap((e) => e.isDirectory()
+      ? lister(path.join(dir, e.name), prefixe + e.name + '/')
+      : [prefixe + e.name]);
+  const lignes = lister(targetAppDir).sort().map((rel) => {
+    const h = crypto.createHash('sha256').update(fs.readFileSync(path.join(targetAppDir, rel))).digest('hex');
+    return h + '  ' + rel;
+  });
+  fs.writeFileSync(path.join(benchDir, 'contenu-archive.txt'), [
+    '# Contenu de l archive signee, ecrit par scripts/package.cjs. Ne pas editer a la main.',
+    '# version: ' + version,
+    '# archive-sha256: ' + sha256,
+    ...lignes,
+    '',
+  ].join(String.fromCharCode(10)));
+  console.log('   Manifeste du contenu ecrit : banc-essai/contenu-archive.txt (' + lignes.length + ' fichiers)');
+}
+
 // 5. Cryptographic Signing
 const keyPath = path.join(root, '.certs', 'toolocal_redact.key');
 if (!fs.existsSync(keyPath)) {

@@ -1,0 +1,68 @@
+# =============================================================================
+#  Banc d'essai — Toolocal Redact sur les trois versions de Nextcloud
+#  déclarées dans appinfo/info.xml : 33, 34 et 35.
+# -----------------------------------------------------------------------------
+#  Trois instances et pas une : une application doit fonctionner sur chaque
+#  version qu'elle déclare. Un essai sur une seule ne prouve rien des autres.
+#
+#  Chaque instance est autonome : base SQLite interne, aucun service partagé.
+#  Si l'une casse, les deux autres continuent — on veut savoir LAQUELLE casse.
+#
+#  L'application est montée en lecture seule depuis ./app, que monter.sh
+#  assemble à partir de contenu-archive.txt : la liste des fichiers de l'archive
+#  signée, avec l'empreinte SHA-256 de chacun. Un seul octet d'écart et le banc
+#  refuse de démarrer. On essaie donc le contenu de l'archive, pas les sources.
+#
+#  Rien n'est exposé en dehors de la machine : chaque port est lié à 127.0.0.1.
+# =============================================================================
+
+services:
+  nc33:
+    image: nextcloud:33-apache
+    container_name: toolocal-nc33
+    restart: "no"
+    ports:
+      - "127.0.0.1:8033:80"
+    environment:
+      SQLITE_DATABASE: nextcloud
+      NEXTCLOUD_ADMIN_USER: ${NC_ADMIN_USER}
+      NEXTCLOUD_ADMIN_PASSWORD: ${NC_ADMIN_PASSWORD}
+      NEXTCLOUD_TRUSTED_DOMAINS: localhost 127.0.0.1
+    volumes:
+      - nc33-data:/var/www/html
+      - ./app/toolocal_redact:/var/www/html/custom_apps/toolocal_redact:ro
+
+  nc34:
+    image: nextcloud:34-apache
+    container_name: toolocal-nc34
+    restart: "no"
+    ports:
+      - "127.0.0.1:8034:80"
+    environment:
+      SQLITE_DATABASE: nextcloud
+      NEXTCLOUD_ADMIN_USER: ${NC_ADMIN_USER}
+      NEXTCLOUD_ADMIN_PASSWORD: ${NC_ADMIN_PASSWORD}
+      NEXTCLOUD_TRUSTED_DOMAINS: localhost 127.0.0.1
+    volumes:
+      - nc34-data:/var/www/html
+      - ./app/toolocal_redact:/var/www/html/custom_apps/toolocal_redact:ro
+
+  nc35:
+    image: nextcloud:35-apache
+    container_name: toolocal-nc35
+    restart: "no"
+    ports:
+      - "127.0.0.1:8035:80"
+    environment:
+      SQLITE_DATABASE: nextcloud
+      NEXTCLOUD_ADMIN_USER: ${NC_ADMIN_USER}
+      NEXTCLOUD_ADMIN_PASSWORD: ${NC_ADMIN_PASSWORD}
+      NEXTCLOUD_TRUSTED_DOMAINS: localhost 127.0.0.1
+    volumes:
+      - nc35-data:/var/www/html
+      - ./app/toolocal_redact:/var/www/html/custom_apps/toolocal_redact:ro
+
+volumes:
+  nc33-data:
+  nc34-data:
+  nc35-data:

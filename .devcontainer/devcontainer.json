@@ -1,0 +1,14 @@
+{
+  "name": "Banc d'essai Toolocal Redact - Nextcloud 33, 34, 35",
+  "image": "mcr.microsoft.com/devcontainers/base:ubuntu-24.04",
+  "features": {
+    "ghcr.io/devcontainers/features/docker-in-docker:2": {}
+  },
+  "forwardPorts": [8033, 8034, 8035],
+  "portsAttributes": {
+    "8033": { "label": "Nextcloud 33", "onAutoForward": "silent" },
+    "8034": { "label": "Nextcloud 34", "onAutoForward": "silent" },
+    "8035": { "label": "Nextcloud 35", "onAutoForward": "silent" }
+  },
+  "postStartCommand": "bash banc-essai/monter.sh"
+}

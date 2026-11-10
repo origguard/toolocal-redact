@@ -1,0 +1,5 @@
+# Tout fichier texte est en LF, sur toutes les plateformes. Sans cela, un
+# checkout Windows produit des CRLF, l'archive construite sous Windows ne
+# contient plus les memes octets que le depot, et banc-essai/contenu-archive.txt
+# ne peut plus servir de preuve.
+* text=auto eol=lf
