@@ -16,7 +16,6 @@ import {
   getPdfJs,
   extractPageTextMap,
   calculateTextMatchBoxes,
-  PRESET_PATTERNS,
 } from './engine/redact.js'
 
 import { lire, ecrire, messageErreur } from './webdav.js'
@@ -79,7 +78,7 @@ export async function openRedactor(file, view = null) {
       return
     }
 
-    const { options, cancelled } = await presentEditor(bytes, file)
+    const { options, cancelled, bilan } = await presentEditor(bytes)
     if (cancelled || !options) return
 
     const out = await redactPdf(bytes, options)
@@ -92,7 +91,11 @@ export async function openRedactor(file, view = null) {
     }
 
     const { nom: savedName } = await ecrire(file, out, '-redacted')
-    notifySuccess(t('toolocal_redact', 'Saved as {name}', { name: savedName }))
+    // Le message de fin redit ce qui a été fait et ce qui reste à la charge
+    // de la personne : l'outil n'a noirci que ce qui a été détecté ou tracé.
+    const fait = bilan.zones > 1 ? bilan.zones + ' zones noircies' : bilan.zones + ' zone noircie'
+    const scan = bilan.sansTexte > 0 ? ' Attention : ' + bilan.sansTexte + ' page(s) sans texte lisible, non analysée(s).' : ''
+    notifySuccess(t('toolocal_redact', 'Saved as {name}', { name: savedName }) + ' — ' + fait + '.' + scan + ' Relisez le fichier avant de le transmettre.')
   } catch (e) {
     const statut = e?.status ?? e?.response?.status
     notifyError(statut
@@ -102,509 +105,526 @@ export async function openRedactor(file, view = null) {
 }
 
 /**
- * Interface utilisateur locale pour configurer et visualiser le caviardage en direct.
+ * Feuille de style du dialogue.
+ *
+ * Règle tenue partout : une couleur de fond n'est jamais posée sans la couleur
+ * du texte qui va dessus. Le défaut corrigé ici venait de fonds clairs écrits
+ * en dur sur lesquels le texte héritait la couleur du thème — clair sur clair
+ * dès que Nextcloud est en thème sombre.
+ *
+ * Les couleurs suivent le thème de l'instance par ses variables CSS ; les
+ * encadrés d'avertissement gardent un couple fond/texte fixe, lisible dans les
+ * deux thèmes.
  */
-async function presentEditor(bytes, file) {
-  return new Promise(async (resolve) => {
-    const pdfjs = getPdfJs()
-    let pdfDoc = null
-    let numPages = 1
-    let currentPage = 1
+const FEUILLE = `
+#toolocal-redact-overlay {
+  --tl-texte: var(--color-main-text, #111827);
+  --tl-fond: var(--color-main-background, #ffffff);
+  --tl-doux: var(--color-text-maxcontrast, #4b5563);
+  --tl-carte: var(--color-background-dark, #eef2f6);
+  --tl-bord: var(--color-border-maxcontrast, #6b7280);
+  --tl-trait: var(--color-border, #d1d5db);
+  position: fixed; inset: 0; z-index: 100000;
+  background: rgba(0, 0, 0, 0.7);
+  display: flex; align-items: center; justify-content: center;
+  font-family: var(--font-face, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif);
+  font-size: 14px; line-height: 1.45; color: var(--tl-texte);
+}
+#toolocal-redact-overlay * { box-sizing: border-box; }
+#toolocal-redact-overlay .tl-modale {
+  background: var(--tl-fond); color: var(--tl-texte);
+  width: 96vw; max-width: 1180px; height: 94vh; max-height: 900px;
+  border-radius: 12px; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.4);
+  display: flex; flex-direction: column; overflow: hidden;
+}
+#toolocal-redact-overlay .tl-entete,
+#toolocal-redact-overlay .tl-pied {
+  background: var(--tl-carte); color: var(--tl-texte);
+  padding: 12px 20px; display: flex; align-items: center; justify-content: space-between; gap: 16px;
+}
+#toolocal-redact-overlay .tl-entete { border-bottom: 1px solid var(--tl-trait); }
+#toolocal-redact-overlay .tl-pied { border-top: 1px solid var(--tl-trait); flex-wrap: wrap; }
+#toolocal-redact-overlay h2 { margin: 0; font-size: 17px; font-weight: 700; color: var(--tl-texte); }
+#toolocal-redact-overlay .tl-sous-titre { font-size: 13px; color: var(--tl-doux); margin-top: 2px; }
+#toolocal-redact-overlay .tl-corps { flex: 1; display: flex; overflow: hidden; min-height: 0; }
+#toolocal-redact-overlay .tl-volet {
+  width: 420px; flex: none; padding: 16px; overflow-y: auto;
+  display: flex; flex-direction: column; gap: 16px;
+  background: var(--tl-fond); color: var(--tl-texte);
+  border-right: 1px solid var(--tl-trait);
+}
+#toolocal-redact-overlay .tl-titre { display: block; font-size: 14px; font-weight: 700; margin: 0 0 6px 0; color: var(--tl-texte); }
+#toolocal-redact-overlay .tl-aide { font-size: 13px; color: var(--tl-doux); margin: 4px 0 0 0; }
+#toolocal-redact-overlay .tl-carte {
+  background: var(--tl-carte); color: var(--tl-texte);
+  border: 1px solid var(--tl-trait); border-radius: 8px; padding: 12px;
+  display: flex; flex-direction: column; gap: 10px;
+}
+#toolocal-redact-overlay .tl-case { display: flex; align-items: flex-start; gap: 8px; font-size: 13px; cursor: pointer; color: var(--tl-texte); margin: 0; }
+#toolocal-redact-overlay .tl-case input { margin: 3px 0 0 0; flex: none; width: 16px; height: 16px; min-height: 0; cursor: pointer; }
+#toolocal-redact-overlay textarea,
+#toolocal-redact-overlay select {
+  width: 100%; margin: 0; padding: 8px 10px; border-radius: 6px;
+  border: 1px solid var(--tl-bord);
+  background: var(--tl-fond); color: var(--tl-texte);
+  font-family: inherit; font-size: 14px;
+}
+#toolocal-redact-overlay textarea { resize: vertical; }
+#toolocal-redact-overlay textarea::placeholder { color: var(--tl-doux); opacity: 1; }
+#toolocal-redact-overlay .tl-btn {
+  margin: 0; min-height: 0; padding: 7px 14px; border-radius: 6px;
+  border: 1px solid var(--tl-bord);
+  background: var(--tl-fond); color: var(--tl-texte);
+  font-family: inherit; font-size: 13px; font-weight: 600; cursor: pointer; text-align: left;
+}
+#toolocal-redact-overlay .tl-btn:hover:not(:disabled) { border-color: var(--tl-texte); }
+#toolocal-redact-overlay .tl-btn-principal {
+  background: var(--color-primary-element, #00679e); color: var(--color-primary-element-text, #ffffff);
+  border-color: var(--color-primary-element, #00679e); padding: 9px 20px; font-size: 14px;
+}
+#toolocal-redact-overlay .tl-btn:disabled { opacity: 0.45; cursor: not-allowed; }
+#toolocal-redact-overlay .tl-fermer { border: none; background: transparent; color: var(--tl-texte); font-size: 20px; padding: 4px 10px; }
+#toolocal-redact-overlay .tl-grille { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+#toolocal-redact-overlay .tl-ligne { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+#toolocal-redact-overlay .tl-compte { font-size: 14px; font-weight: 700; color: var(--tl-texte); }
+#toolocal-redact-overlay .tl-limites {
+  background: #fff4ce; color: #3b2a00; border: 2px solid #b45309;
+  border-radius: 8px; padding: 12px 14px; font-size: 13.5px;
+}
+#toolocal-redact-overlay .tl-limites strong { color: #3b2a00; }
+#toolocal-redact-overlay .tl-limites ul { margin: 6px 0 0 0; padding: 0 0 0 18px; list-style: disc; }
+#toolocal-redact-overlay .tl-limites li { margin: 3px 0; color: #3b2a00; }
+#toolocal-redact-overlay .tl-alerte {
+  background: #fde8e8; color: #7f1d1d; border: 2px solid #b91c1c;
+  border-radius: 8px; padding: 10px 12px; font-size: 13.5px; font-weight: 600;
+}
+#toolocal-redact-overlay [hidden] { display: none !important; }
+#toolocal-redact-overlay .tl-apercu { flex: 1; min-width: 0; display: flex; flex-direction: column; background: var(--tl-carte); color: var(--tl-texte); overflow: hidden; }
+#toolocal-redact-overlay .tl-barre {
+  padding: 8px 16px; display: flex; align-items: center; justify-content: center; gap: 16px; flex-wrap: wrap;
+  background: var(--tl-fond); color: var(--tl-texte); border-bottom: 1px solid var(--tl-trait);
+}
+#toolocal-redact-overlay .tl-legende { width: 100%; text-align: center; font-size: 13px; color: var(--tl-doux); }
+#toolocal-redact-overlay .tl-defile { flex: 1; overflow: auto; padding: 16px; text-align: center; }
+#toolocal-redact-overlay .tl-feuille {
+  position: relative; display: inline-block; width: 100%; vertical-align: top;
+  background: #ffffff; box-shadow: 0 10px 25px rgba(0, 0, 0, 0.25); user-select: none; line-height: 0;
+}
+#toolocal-redact-overlay .tl-feuille canvas { display: block; width: 100%; height: auto; }
+#toolocal-redact-overlay .tl-feuille canvas + canvas { position: absolute; inset: 0; height: 100%; cursor: crosshair; }
+#toolocal-redact-overlay .tl-etat { font-size: 13px; font-weight: 600; color: var(--tl-texte); text-align: right; }
+@media (max-width: 860px) {
+  #toolocal-redact-overlay .tl-corps { flex-direction: column; overflow-y: auto; }
+  #toolocal-redact-overlay .tl-volet { width: 100%; border-right: none; overflow: visible; }
+  #toolocal-redact-overlay .tl-apercu { min-height: 70vh; flex: none; }
+}
+`
 
-    try {
-      const loading = pdfjs.getDocument({
-        data: bytes,
-        disableWorker: true,
-        isEvalSupported: false,
-        useSystemFonts: true,
-      })
-      pdfDoc = await loading.promise
-      numPages = pdfDoc.numPages
-    } catch (err) {
-      console.warn('[Toolocal Redact] Preview load error:', err)
-    }
+/**
+ * Interface de réglage et d'aperçu.
+ *
+ * Trois garde-fous, tous là pour qu'on ne puisse pas croire à un caviardage
+ * qui n'a pas eu lieu :
+ *   1. le décompte porte sur le document entier, pas sur la page affichée ;
+ *   2. une page sans texte lisible (scan) est signalée nommément : la détection
+ *      automatique n'y voit rien ;
+ *   3. « Caviarder » reste bloqué tant qu'il n'y a rien à noircir, tant que
+ *      l'aperçu n'a pas pu être affiché, et tant que la relecture n'est pas
+ *      confirmée.
+ */
+async function presentEditor(bytes) {
+  const pdfjs = getPdfJs()
+  let pdfDoc = null
+  try {
+    // Copie : PDF.js peut s'approprier le tampon qu'on lui donne, et ces
+    // octets resservent pour le caviardage lui-même.
+    pdfDoc = await pdfjs.getDocument({ data: bytes.slice(), isEvalSupported: false, useSystemFonts: true }).promise
+  } catch (err) {
+    console.warn('[Toolocal Redact] Preview load error:', err)
+  }
+  const numPages = pdfDoc ? pdfDoc.numPages : 0
 
-    // État de l'éditeur
+  return new Promise((resolve) => {
     const manualBoxes = [] // { page, normX, normY, normWidth, normHeight }
-    let activePageBoxes = [] // boîtes calculées pour la page active
+    const pages = new Map() // numéro -> { page, textMap }
+    let currentPage = 1
+    let currentVp = null
+    let activePageBoxes = []
+    let bilan = null // { total, parPage: Map, sansTexte: number[] } — null tant que l'analyse court
+    let tour = 0
 
-    // Structure DOM de la modale
     const overlay = document.createElement('div')
     overlay.id = 'toolocal-redact-overlay'
-    overlay.style.cssText = `
-      position: fixed;
-      inset: 0;
-      z-index: 100000;
-      background: rgba(0, 0, 0, 0.7);
-      backdrop-filter: blur(4px);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-family: var(--font-face, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif);
-      color: var(--color-main-text, #111827);
-    `
+    overlay.setAttribute('role', 'dialog')
+    overlay.setAttribute('aria-modal', 'true')
+    overlay.innerHTML = `
+      <style>${FEUILLE}</style>
+      <div class="tl-modale">
+        <div class="tl-entete">
+          <div>
+            <h2>${t('toolocal_redact', 'Redact PDF Document')}</h2>
+            <div class="tl-sous-titre">Traitement dans votre navigateur · aucun envoi à un tiers</div>
+          </div>
+          <button type="button" id="tl-btn-close" class="tl-btn tl-fermer" aria-label="${t('toolocal_redact', 'Cancel')}">✕</button>
+        </div>
 
-    const modal = document.createElement('div')
-    modal.style.cssText = `
-      background: var(--color-main-background, #ffffff);
-      width: 95vw;
-      max-width: 1120px;
-      height: 92vh;
-      max-height: 860px;
-      border-radius: 12px;
-      box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.4);
-      display: flex;
-      flex-direction: column;
-      overflow: hidden;
-    `
+        <div class="tl-corps">
+          <div class="tl-volet">
+            <div class="tl-limites" id="tl-limites">
+              <strong>⚠️ Limites de l'outil — à lire avant de caviarder</strong>
+              <ul>
+                <li><strong>Recherche littérale :</strong> un nom abrégé ou coupé en fin de ligne passe.</li>
+                <li><strong>Pas d'OCR :</strong> un texte présent seulement en image (page scannée, photo, tampon) n'est pas détecté.</li>
+                <li><strong>L'outil ne juge pas,</strong> il applique vos règles.</li>
+                <li><strong>Relecture humaine indispensable</strong> avant toute transmission.</li>
+                <li>Le jeu de test est le nôtre : vos documents réels peuvent présenter des cas non rencontrés.</li>
+              </ul>
+            </div>
 
-    // En-tête
-    const header = document.createElement('div')
-    header.style.cssText = `
-      padding: 14px 20px;
-      border-bottom: 1px solid var(--color-border, #e5e7eb);
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      background: var(--color-background-hover, #f8fafc);
-    `
-    header.innerHTML = `
-      <div style="display:flex; align-items:center; gap:12px;">
-        <span style="font-size:22px;">🔲</span>
-        <div>
-          <h2 style="margin:0; font-size:16px; font-weight:700; color:var(--color-main-text, #0f172a);">
-            ${t('toolocal_redact', 'Redact PDF Document')}
-          </h2>
-          <div style="font-size:12px; color:#059669; font-weight:600; display:flex; align-items:center; gap:6px; margin-top:2px;">
-            <span>🛡️</span> 100% Local · Zéro Tiers · Non Récupérable
+            <div>
+              <label class="tl-titre" for="tl-terms">${t('toolocal_redact', 'Terms or patterns to redact')}</label>
+              <textarea id="tl-terms" rows="4" placeholder="Un terme par ligne, par exemple :&#10;Jean Dupont&#10;Dossier 2026-114"></textarea>
+              <p class="tl-aide">Termes exacts, un par ligne ou séparés par des virgules. Les expressions régulières /motif/i sont acceptées.</p>
+            </div>
+
+            <div class="tl-carte">
+              <div class="tl-titre" style="margin:0;">Détection automatique</div>
+              <label class="tl-case">
+                <input type="checkbox" id="tl-chk-sensitive" checked>
+                <span><strong>Mentions sensibles :</strong> Confidentiel, Secret, Creditor, Statutory Work, Forbidden…</span>
+              </label>
+              <label class="tl-case">
+                <input type="checkbox" id="tl-chk-gdpr" checked>
+                <span><strong>Données personnelles :</strong> téléphones, courriels, IBAN, cartes bancaires, numéros de sécurité sociale…</span>
+              </label>
+              <div class="tl-compte" id="tl-detected-badge" aria-live="polite">Analyse du document en cours…</div>
+              <div class="tl-alerte" id="tl-sans-texte" hidden></div>
+            </div>
+
+            <div>
+              <span class="tl-titre">Profils rapides</span>
+              <div class="tl-grille">
+                <button type="button" class="tl-btn tl-preset" data-preset="siret, capital, sarl, sas, gérant, rcs, contrat">Contrat</button>
+                <button type="button" class="tl-btn tl-preset" data-preset="iban, bic, tva, compte, solde, facture, virement">Facture / IBAN</button>
+                <button type="button" class="tl-btn tl-preset" data-preset="patient, diagnostic, sécurité sociale, nir, ordonnance, consultation">Médical</button>
+                <button type="button" class="tl-btn tl-preset" data-preset="parquet, rg, déposant, pièce n°, adversaire, audience">Procédure</button>
+              </div>
+              <p class="tl-aide">Un profil ajoute des mots à la liste ci-dessus. Il ne reconnaît ni les noms ni les montants.</p>
+            </div>
+
+            <div>
+              <span class="tl-titre">Zones tracées à la main</span>
+              <p class="tl-aide" style="margin:0 0 8px 0;">Tracez un rectangle à la souris sur l'aperçu pour noircir ce que la détection n'a pas vu.</p>
+              <div class="tl-ligne">
+                <span class="tl-compte" id="tl-box-count">0 zone tracée</span>
+                <button type="button" id="tl-btn-clear-boxes" class="tl-btn">Effacer les zones tracées</button>
+              </div>
+            </div>
+
+            <div>
+              <label class="tl-case" style="margin-bottom:10px;">
+                <input type="checkbox" id="tl-match-case">
+                <span>${t('toolocal_redact', 'Match case')}</span>
+              </label>
+              <label class="tl-titre" for="tl-scale">Qualité du fichier produit</label>
+              <select id="tl-scale">
+                <option value="2" selected>Élevée (environ 150 à 200 DPI)</option>
+                <option value="3">Impression (environ 300 DPI)</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="tl-apercu">
+            <div class="tl-barre">
+              <button type="button" id="tl-prev-page" class="tl-btn">◀ Précédente</button>
+              <span class="tl-compte" id="tl-page-info">Page 1 sur ${numPages || 1}</span>
+              <button type="button" id="tl-next-page" class="tl-btn">Suivante ▶</button>
+              <div class="tl-legende">Aperçu : chaque zone encadrée de rouge sera noircie définitivement dans le fichier produit. Ce qui n'est pas encadré restera lisible.</div>
+            </div>
+            <div class="tl-defile" id="tl-defile">
+              <div class="tl-alerte" id="tl-apercu-erreur" hidden></div>
+              <div class="tl-feuille" id="tl-feuille"><canvas></canvas><canvas></canvas></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="tl-pied">
+          <label class="tl-case" style="flex:1; min-width:280px; font-weight:600;">
+            <input type="checkbox" id="tl-chk-relu">
+            <span>J'ai relu l'aperçu de chaque page, et je relirai le fichier produit avant de le transmettre.</span>
+          </label>
+          <div style="display:flex; flex-direction:column; gap:6px; align-items:flex-end;">
+            <div class="tl-etat" id="tl-etat" aria-live="polite"></div>
+            <div style="display:flex; gap:10px;">
+              <button type="button" id="tl-btn-cancel" class="tl-btn">${t('toolocal_redact', 'Cancel')}</button>
+              <button type="button" id="tl-btn-apply" class="tl-btn tl-btn-principal" disabled>${t('toolocal_redact', 'Apply Redaction')}</button>
+            </div>
           </div>
         </div>
       </div>
-      <button id="tl-btn-close" style="background:none; border:none; font-size:20px; cursor:pointer; color:#64748b; padding:4px 8px; border-radius:6px;">✕</button>
     `
-
-    // Corps (2 colonnes)
-    const body = document.createElement('div')
-    body.style.cssText = `
-      flex: 1;
-      display: flex;
-      overflow: hidden;
-    `
-
-    // Colonne gauche : Paramètres et détection
-    const sidebar = document.createElement('div')
-    sidebar.style.cssText = `
-      width: 400px;
-      padding: 18px;
-      border-right: 1px solid var(--color-border, #e5e7eb);
-      overflow-y: auto;
-      display: flex;
-      flex-direction: column;
-      gap: 16px;
-      background: var(--color-main-background, #ffffff);
-    `
-
-    sidebar.innerHTML = `
-      <div>
-        <label style="display:block; font-size:13px; font-weight:600; margin-bottom:6px;">
-          ${t('toolocal_redact', 'Terms or patterns to redact')}
-        </label>
-        <textarea id="tl-terms" rows="4" placeholder="Saisissez les termes exacts à occulter, un par ligne&#10;Ex:&#10;Jean Dupont&#10;Confidentiel&#10;secret@corp.com" style="width:100%; box-sizing:border-box; padding:10px; border-radius:6px; border:1px solid #cbd5e1; font-family:inherit; font-size:13px; resize:vertical;"></textarea>
-        <div style="font-size:11px; color:#64748b; margin-top:4px;">
-          Saisissez les termes exacts à occulter, un par ligne (ou séparés par des virgules). Accepte aussi les regex /motif/i.
-        </div>
-      </div>
-
-      <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px; padding:12px; display:flex; flex-direction:column; gap:10px;">
-        <div style="font-size:12px; font-weight:700; color:#334155;">
-          ⚡ Détection automatique & Catégories sensibles :
-        </div>
-
-        <label style="display:flex; align-items:flex-start; gap:8px; font-size:12px; cursor:pointer;">
-          <input type="checkbox" id="tl-chk-sensitive" checked style="margin-top:2px;">
-          <span>
-            <strong>Identifiants sensibles :</strong> Confidentiel, Secret, Creditor, Statutory Work, Forbidden...
-          </span>
-        </label>
-
-        <label style="display:flex; align-items:flex-start; gap:8px; font-size:12px; cursor:pointer;">
-          <input type="checkbox" id="tl-chk-gdpr" checked style="margin-top:2px;">
-          <span>
-            <strong>Reconnaissance automatique (RGPD / PII) :</strong> Téléphones, Courriels, IBAN, Cartes bancaires, Sécurité sociale...
-          </span>
-        </label>
-
-        <div style="background:#fffbeb; border:1px solid #fef3c7; border-left:3px solid #f59e0b; padding:6px 8px; border-radius:4px; font-size:10.5px; color:#92400e; line-height:1.35; margin-top:2px; margin-bottom:6px;">
-          ⚠️ <strong>Aide au repérage :</strong> Cette détection est une aide visuelle. Un format atypique ou une césure de ligne peut échapper aux filtres. <em>Une relecture humaine reste obligatoire avant transmission.</em>
-        </div>
-
-        <div style="border-top:1px solid #e2e8f0; padding-top:8px; display:flex; align-items:center; justify-content:space-between;">
-          <span id="tl-detected-badge" style="font-size:12px; font-weight:600; color:#2563eb;">
-            0 terme(s) détecté(s)
-          </span>
-          <button type="button" id="tl-btn-redact-all" style="padding:4px 10px; font-size:11px; font-weight:600; border-radius:4px; border:1px solid #2563eb; color:#2563eb; background:#eff6ff; cursor:pointer;">
-            Tout caviarder
-          </button>
-        </div>
-      </div>
-
-      <div>
-        <label style="display:block; font-size:12px; font-weight:600; margin-bottom:6px; color:#475569;">
-          📋 Profils rapides :
-        </label>
-        <div style="display:grid; grid-template-columns:1fr 1fr; gap:6px;">
-          <button type="button" class="tl-preset" data-preset="siret, capital, sarl, sas, gérant, rcs, contrat" style="padding:6px 8px; font-size:11px; border:1px solid #e2e8f0; background:#f8fafc; border-radius:6px; cursor:pointer; text-align:left;">📋 Contrat</button>
-          <button type="button" class="tl-preset" data-preset="iban, bic, tva, compte, solde, facture, virement" style="padding:6px 8px; font-size:11px; border:1px solid #e2e8f0; background:#f8fafc; border-radius:6px; cursor:pointer; text-align:left;">💳 Facture / IBAN</button>
-          <button type="button" class="tl-preset" data-preset="patient, diagnostic, sécurité sociale, nir, ordonnance, consultation" style="padding:6px 8px; font-size:11px; border:1px solid #e2e8f0; background:#f8fafc; border-radius:6px; cursor:pointer; text-align:left;">🏥 Médical</button>
-          <button type="button" class="tl-preset" data-preset="parquet, rg, déposant, pièce n°, adversaire, audience" style="padding:6px 8px; font-size:11px; border:1px solid #e2e8f0; background:#f8fafc; border-radius:6px; cursor:pointer; text-align:left;">⚖️ Procédure</button>
-        </div>
-      </div>
-
-      <div style="border-top:1px solid #e2e8f0; padding-top:12px;">
-        <label style="display:block; font-size:13px; font-weight:600; margin-bottom:6px;">
-          ✏️ Sélection manuelle de zones :
-        </label>
-        <p style="font-size:11px; color:#64748b; margin:0 0 8px 0; line-height:1.4;">
-          Tracez des rectangles directement à la souris sur la prévisualisation à droite.
-        </p>
-        <div style="display:flex; align-items:center; justify-content:space-between;">
-          <span id="tl-box-count" style="font-size:12px; font-weight:600; color:#0f172a;">0 zone(s) manuelle(s)</span>
-          <button type="button" id="tl-btn-clear-boxes" style="padding:3px 8px; font-size:11px; border:1px solid #fca5a5; color:#b91c1c; background:#fff; border-radius:4px; cursor:pointer;">Effacer</button>
-        </div>
-      </div>
-
-      <div style="border-top:1px solid #e2e8f0; padding-top:12px; margin-top:auto;">
-        <div style="display:flex; align-items:center; gap:8px; margin-bottom:10px;">
-          <input type="checkbox" id="tl-match-case" style="cursor:pointer;">
-          <label for="tl-match-case" style="font-size:12px; cursor:pointer; color:#334155;">
-            ${t('toolocal_redact', 'Match case')}
-          </label>
-        </div>
-
-        <label style="display:block; font-size:12px; font-weight:600; margin-bottom:4px; color:#475569;">
-          Qualité de rendu de sortie :
-        </label>
-        <select id="tl-scale" style="width:100%; padding:6px 8px; border-radius:6px; border:1px solid #cbd5e1; font-size:12px;">
-          <option value="2" selected>Élevée (~150-200 DPI)</option>
-          <option value="3">Optimale (~300 DPI - Impression)</option>
-        </select>
-      </div>
-    `
-
-    // Colonne droite : Prévisualisation interactive
-    const previewPane = document.createElement('div')
-    previewPane.style.cssText = `
-      flex: 1;
-      display: flex;
-      flex-direction: column;
-      background: #e2e8f0;
-      overflow: hidden;
-    `
-
-    // Barre d'outils de pagination
-    const pageToolbar = document.createElement('div')
-    pageToolbar.style.cssText = `
-      padding: 8px 16px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      gap: 16px;
-      background: var(--color-main-background, #ffffff);
-      border-bottom: 1px solid var(--color-border, #e5e7eb);
-    `
-    pageToolbar.innerHTML = `
-      <button id="tl-prev-page" style="padding:4px 12px; border-radius:4px; border:1px solid #cbd5e1; background:#fff; cursor:pointer; font-size:12px;">◀ Précédent</button>
-      <span id="tl-page-info" style="font-size:13px; font-weight:600;">Page 1 sur ${numPages}</span>
-      <button id="tl-next-page" style="padding:4px 12px; border-radius:4px; border:1px solid #cbd5e1; background:#fff; cursor:pointer; font-size:12px;">Suivant ▶</button>
-    `
-
-    const canvasContainer = document.createElement('div')
-    canvasContainer.style.cssText = `
-      flex: 1;
-      overflow: auto;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      padding: 16px;
-      position: relative;
-    `
-
-    const canvasWrapper = document.createElement('div')
-    canvasWrapper.style.cssText = `
-      position: relative;
-      box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
-      background: #ffffff;
-      user-select: none;
-    `
-
-    const previewCanvas = document.createElement('canvas')
-    const overlayCanvas = document.createElement('canvas')
-    overlayCanvas.style.cssText = `
-      position: absolute;
-      inset: 0;
-      cursor: crosshair;
-    `
-
-    canvasWrapper.appendChild(previewCanvas)
-    canvasWrapper.appendChild(overlayCanvas)
-    canvasContainer.appendChild(canvasWrapper)
-
-    previewPane.appendChild(pageToolbar)
-    previewPane.appendChild(canvasContainer)
-
-    body.appendChild(sidebar)
-    body.appendChild(previewPane)
-
-    // Pied de page
-    const footer = document.createElement('div')
-    footer.style.cssText = `
-      padding: 12px 20px;
-      border-top: 1px solid var(--color-border, #e5e7eb);
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      background: var(--color-background-hover, #f8fafc);
-    `
-    footer.innerHTML = `
-      <div style="font-size:11px; color:#64748b;">
-        🔒 Le caviardage détruit définitivement les pixels et le calque texte sous-jacent.
-      </div>
-      <div style="display:flex; gap:10px;">
-        <button id="tl-btn-cancel" style="padding:8px 16px; border-radius:6px; border:1px solid #cbd5e1; background:#fff; cursor:pointer; font-size:13px; font-weight:500;">
-          ${t('toolocal_redact', 'Cancel')}
-        </button>
-        <button id="tl-btn-apply" style="padding:8px 20px; border-radius:6px; border:none; background:var(--color-primary, #0082c9); color:#fff; cursor:pointer; font-size:13px; font-weight:600; display:flex; align-items:center; gap:6px;">
-          <span>${t('toolocal_redact', 'Apply Redaction')}</span>
-        </button>
-      </div>
-    `
-
-    modal.appendChild(header)
-    modal.appendChild(body)
-    modal.appendChild(footer)
-    overlay.appendChild(modal)
     document.body.appendChild(overlay)
 
-    // Logique de détection et mise à jour en direct
-    let currentVp = null
-    let currentPageObj = null
-    let currentTextMap = null
+    const $ = (sel) => overlay.querySelector(sel)
+    const feuille = $('#tl-feuille')
+    const [previewCanvas, overlayCanvas] = feuille.querySelectorAll('canvas')
+    const pluriel = (n, un, plusieurs) => `${n} ${n > 1 ? plusieurs : un}`
 
     function getCurrentOptions() {
-      const termsVal = (overlay.querySelector('#tl-terms') || {}).value || ''
-      const matchCaseVal = Boolean((overlay.querySelector('#tl-match-case') || {}).checked)
-      const detectSensitive = Boolean((overlay.querySelector('#tl-chk-sensitive') || {}).checked)
-      const detectGdpr = Boolean((overlay.querySelector('#tl-chk-gdpr') || {}).checked)
-      const scaleVal = parseFloat((overlay.querySelector('#tl-scale') || {}).value || 2)
-
       return {
-        terms: termsVal,
-        matchCase: matchCaseVal,
-        detectSensitiveIdentifiers: detectSensitive,
-        detectGdpr: detectGdpr,
-        scale: scaleVal,
+        terms: $('#tl-terms').value || '',
+        matchCase: $('#tl-match-case').checked,
+        detectSensitiveIdentifiers: $('#tl-chk-sensitive').checked,
+        detectGdpr: $('#tl-chk-gdpr').checked,
+        scale: parseFloat($('#tl-scale').value || 2),
         manualBoxes,
       }
     }
 
-    async function updateDetections() {
-      if (!currentPageObj || !currentVp || !currentTextMap) return
-      const opts = getCurrentOptions()
-      activePageBoxes = calculateTextMatchBoxes(currentPageObj, currentVp, currentTextMap, opts)
-
-      const badge = overlay.querySelector('#tl-detected-badge')
-      if (badge) {
-        badge.textContent = `${activePageBoxes.length} terme(s) détecté(s)`
+    async function donneesPage(n) {
+      if (!pages.has(n)) {
+        const page = await pdfDoc.getPage(n)
+        pages.set(n, { page, textMap: await extractPageTextMap(page) })
       }
-
-      redrawOverlay()
+      return pages.get(n)
     }
 
-    async function renderPreviewPage(pageIndex) {
+    // Dit pourquoi le bouton est bloqué, plutôt que de le laisser gris sans un mot.
+    function majEtat() {
+      let raison = ''
+      if (!pdfDoc) raison = 'Aperçu impossible : caviardage bloqué.'
+      else if (!bilan) raison = 'Analyse du document en cours…'
+      else if (bilan.total === 0 && manualBoxes.length === 0) raison = 'Rien à caviarder : aucune zone détectée ni tracée.'
+      else if (!$('#tl-chk-relu').checked) raison = 'Cochez la case de relecture pour caviarder.'
+      $('#tl-btn-apply').disabled = raison !== ''
+      $('#tl-etat').textContent = raison
+    }
+
+    function majCompteurs() {
+      const badge = $('#tl-detected-badge')
+      const alerte = $('#tl-sans-texte')
+      if (!pdfDoc) {
+        badge.textContent = 'Détection impossible : le document n\'a pas pu être lu.'
+        alerte.hidden = true
+      } else if (!bilan) {
+        badge.textContent = 'Analyse du document en cours…'
+      } else {
+        const ici = bilan.parPage.get(currentPage) || 0
+        badge.textContent = numPages > 1
+          ? `${pluriel(bilan.total, 'zone détectée', 'zones détectées')} dans le document, dont ${ici} sur cette page`
+          : pluriel(bilan.total, 'zone détectée', 'zones détectées')
+        if (bilan.sansTexte.length) {
+          const liste = bilan.sansTexte.length > 12
+            ? `${bilan.sansTexte.slice(0, 12).join(', ')}… (${bilan.sansTexte.length} pages)`
+            : bilan.sansTexte.join(', ')
+          alerte.textContent = bilan.sansTexte.length === numPages
+            ? 'Ce document ne contient aucun texte lisible (scan ou image). La détection automatique n\'y voit rien : tracez chaque zone à la main.'
+            : `Aucun texte lisible page ${liste} (scan ou image). La détection automatique n'y voit rien : tracez les zones à la main.`
+          alerte.hidden = false
+        } else {
+          alerte.hidden = true
+        }
+      }
+      $('#tl-box-count').textContent = pluriel(manualBoxes.length, 'zone tracée', 'zones tracées')
+      majEtat()
+    }
+
+    // Analyse du document entier. Un tour périmé (réglage changé entre-temps)
+    // n'écrit rien.
+    async function analyser() {
       if (!pdfDoc) return
-      currentPage = pageIndex
-      const pageInfo = overlay.querySelector('#tl-page-info')
-      if (pageInfo) pageInfo.textContent = `Page ${currentPage} sur ${numPages}`
+      const monTour = ++tour
+      bilan = null
+      majCompteurs()
+      try {
+        const opts = getCurrentOptions()
+        const parPage = new Map()
+        const sansTexte = []
+        let total = 0
+        for (let n = 1; n <= numPages; n++) {
+          const { page, textMap } = await donneesPage(n)
+          if (monTour !== tour) return
+          if (!textMap.fullText.trim()) { sansTexte.push(n); continue }
+          const nb = calculateTextMatchBoxes(page, page.getViewport({ scale: 1 }), textMap, opts).length
+          parPage.set(n, nb)
+          total += nb
+        }
+        bilan = { total, parPage, sansTexte }
+        majCompteurs()
+      } catch (err) {
+        console.warn('[Toolocal Redact] Analysis error:', err)
+        signalerApercuImpossible()
+      }
+    }
 
-      currentPageObj = await pdfDoc.getPage(pageIndex)
-      currentVp = currentPageObj.getViewport({ scale: 1.25 })
+    let minuterie = null
+    function reglageChange() {
+      if (!pdfDoc) return
+      if (currentVp && pages.has(currentPage)) {
+        const { page, textMap } = pages.get(currentPage)
+        activePageBoxes = calculateTextMatchBoxes(page, currentVp, textMap, getCurrentOptions())
+        redrawOverlay()
+      }
+      tour++
+      bilan = null
+      majCompteurs()
+      clearTimeout(minuterie)
+      minuterie = setTimeout(analyser, 200)
+    }
 
-      previewCanvas.width = Math.round(currentVp.width)
-      previewCanvas.height = Math.round(currentVp.height)
-      overlayCanvas.width = Math.round(currentVp.width)
-      overlayCanvas.height = Math.round(currentVp.height)
+    // Les rendus se suivent à la file : PDF.js refuse deux rendus simultanés
+    // sur le même canvas.
+    let file = Promise.resolve()
+    function afficherPage(n) {
+      file = file.then(async () => {
+        if (!pdfDoc) return
+        currentPage = n
+        $('#tl-page-info').textContent = `Page ${n} sur ${numPages}`
+        $('#tl-prev-page').disabled = n <= 1
+        $('#tl-next-page').disabled = n >= numPages
+        const { page, textMap } = await donneesPage(n)
+        currentVp = page.getViewport({ scale: 1.5 })
+        for (const c of [previewCanvas, overlayCanvas]) {
+          c.width = Math.round(currentVp.width)
+          c.height = Math.round(currentVp.height)
+        }
+        feuille.style.maxWidth = `${Math.round(currentVp.width)}px`
+        await page.render({ canvasContext: previewCanvas.getContext('2d'), viewport: currentVp }).promise
+        activePageBoxes = calculateTextMatchBoxes(page, currentVp, textMap, getCurrentOptions())
+        redrawOverlay()
+        $('#tl-defile').scrollTop = 0
+        majCompteurs()
+      }).catch((err) => {
+        console.warn('[Toolocal Redact] Preview render error:', err)
+        signalerApercuImpossible()
+      })
+    }
 
-      const ctx = previewCanvas.getContext('2d')
-      await currentPageObj.render({ canvasContext: ctx, viewport: currentVp }).promise
-
-      currentTextMap = await extractPageTextMap(currentPageObj)
-      await updateDetections()
+    function signalerApercuImpossible() {
+      pdfDoc = null
+      bilan = null
+      feuille.hidden = true
+      const e = $('#tl-apercu-erreur')
+      e.textContent = 'L\'aperçu de ce document n\'a pas pu être affiché. Sans aperçu, rien ne peut être relu : le caviardage est bloqué.'
+      e.hidden = false
+      majCompteurs()
     }
 
     function redrawOverlay() {
       const ctx = overlayCanvas.getContext('2d')
       ctx.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height)
-
-      // 1. Dessiner les correspondances détectées automatiquement (noir avec liseré rouge)
-      ctx.fillStyle = 'rgba(0, 0, 0, 0.75)'
-      ctx.strokeStyle = '#ef4444'
-      ctx.lineWidth = 1.5
-
-      activePageBoxes.forEach((b) => {
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.8)'
+      ctx.strokeStyle = '#dc2626'
+      ctx.lineWidth = 2
+      for (const b of activePageBoxes) {
         ctx.fillRect(b.x, b.y, b.width, b.height)
         ctx.strokeRect(b.x, b.y, b.width, b.height)
-      })
-
-      // 2. Dessiner les boîtes manuelles pour cette page
-      ctx.fillStyle = '#000000'
-      const pageBoxes = manualBoxes.filter((b) => b.page === currentPage)
-      pageBoxes.forEach((b) => {
+      }
+      for (const b of manualBoxes.filter((m) => m.page === currentPage)) {
         const x = b.normX * overlayCanvas.width
         const y = b.normY * overlayCanvas.height
         const w = b.normWidth * overlayCanvas.width
         const h = b.normHeight * overlayCanvas.height
         ctx.fillRect(x, y, w, h)
-      })
-
-      const countEl = overlay.querySelector('#tl-box-count')
-      if (countEl) {
-        countEl.textContent = `${manualBoxes.length} zone(s) manuelle(s)`
+        ctx.strokeRect(x, y, w, h)
       }
     }
 
-    // Gestion du tracé manuel à la souris
-    let isDrawing = false
-    let startX = 0
-    let startY = 0
+    // Le canvas est affiché à la largeur disponible : la position de la souris
+    // est ramenée aux pixels réels du canvas.
+    function position(e) {
+      const r = overlayCanvas.getBoundingClientRect()
+      const x = (e.clientX - r.left) * (overlayCanvas.width / r.width)
+      const y = (e.clientY - r.top) * (overlayCanvas.height / r.height)
+      return {
+        x: Math.max(0, Math.min(overlayCanvas.width, x)),
+        y: Math.max(0, Math.min(overlayCanvas.height, y)),
+      }
+    }
 
-    overlayCanvas.addEventListener('mousedown', (e) => {
-      const rect = overlayCanvas.getBoundingClientRect()
-      startX = e.clientX - rect.left
-      startY = e.clientY - rect.top
-      isDrawing = true
-    })
-
+    let depart = null
+    overlayCanvas.addEventListener('mousedown', (e) => { depart = position(e) })
     overlayCanvas.addEventListener('mousemove', (e) => {
-      if (!isDrawing) return
-      const rect = overlayCanvas.getBoundingClientRect()
-      const currentX = e.clientX - rect.left
-      const currentY = e.clientY - rect.top
-
+      if (!depart) return
+      const p = position(e)
       redrawOverlay()
       const ctx = overlayCanvas.getContext('2d')
-      ctx.strokeStyle = '#ef4444'
+      ctx.save()
+      ctx.strokeStyle = '#dc2626'
       ctx.lineWidth = 2
-      ctx.setLineDash([4, 4])
+      ctx.setLineDash([6, 4])
       ctx.fillStyle = 'rgba(0, 0, 0, 0.45)'
-
-      const w = currentX - startX
-      const h = currentY - startY
-      ctx.fillRect(startX, startY, w, h)
-      ctx.strokeRect(startX, startY, w, h)
+      ctx.fillRect(depart.x, depart.y, p.x - depart.x, p.y - depart.y)
+      ctx.strokeRect(depart.x, depart.y, p.x - depart.x, p.y - depart.y)
+      ctx.restore()
     })
-
-    const finishDraw = (e) => {
-      if (!isDrawing) return
-      isDrawing = false
-      const rect = overlayCanvas.getBoundingClientRect()
-      const endX = Math.max(0, Math.min(overlayCanvas.width, e.clientX - rect.left))
-      const endY = Math.max(0, Math.min(overlayCanvas.height, e.clientY - rect.top))
-
-      const x = Math.min(startX, endX)
-      const y = Math.min(startY, endY)
-      const width = Math.abs(endX - startX)
-      const height = Math.abs(endY - startY)
-
+    const finTrace = (e) => {
+      if (!depart) return
+      const p = position(e)
+      const width = Math.abs(p.x - depart.x)
+      const height = Math.abs(p.y - depart.y)
       if (width > 5 && height > 5) {
         manualBoxes.push({
           page: currentPage,
-          normX: x / overlayCanvas.width,
-          normY: y / overlayCanvas.height,
+          normX: Math.min(depart.x, p.x) / overlayCanvas.width,
+          normY: Math.min(depart.y, p.y) / overlayCanvas.height,
           normWidth: width / overlayCanvas.width,
           normHeight: height / overlayCanvas.height,
         })
       }
+      depart = null
       redrawOverlay()
+      majCompteurs()
     }
+    overlayCanvas.addEventListener('mouseup', finTrace)
+    overlayCanvas.addEventListener('mouseleave', finTrace)
 
-    overlayCanvas.addEventListener('mouseup', finishDraw)
-    overlayCanvas.addEventListener('mouseleave', finishDraw)
+    $('#tl-terms').addEventListener('input', reglageChange)
+    $('#tl-chk-sensitive').addEventListener('change', reglageChange)
+    $('#tl-chk-gdpr').addEventListener('change', reglageChange)
+    $('#tl-match-case').addEventListener('change', reglageChange)
+    $('#tl-chk-relu').addEventListener('change', majEtat)
 
-    // Événements d'interaction en direct
-    const termsEl = overlay.querySelector('#tl-terms')
-    if (termsEl) {
-      termsEl.addEventListener('input', () => updateDetections())
-    }
+    $('#tl-prev-page').onclick = () => { if (pdfDoc && currentPage > 1) afficherPage(currentPage - 1) }
+    $('#tl-next-page').onclick = () => { if (pdfDoc && currentPage < numPages) afficherPage(currentPage + 1) }
 
-    const chkSensitive = overlay.querySelector('#tl-chk-sensitive')
-    if (chkSensitive) {
-      chkSensitive.addEventListener('change', () => updateDetections())
-    }
-
-    const chkGdpr = overlay.querySelector('#tl-chk-gdpr')
-    if (chkGdpr) {
-      chkGdpr.addEventListener('change', () => updateDetections())
-    }
-
-    const chkMatchCase = overlay.querySelector('#tl-match-case')
-    if (chkMatchCase) {
-      chkMatchCase.addEventListener('change', () => updateDetections())
-    }
-
-    // Boutons de navigation
-    overlay.querySelector('#tl-prev-page').onclick = () => {
-      if (currentPage > 1) renderPreviewPage(currentPage - 1)
-    }
-    overlay.querySelector('#tl-next-page').onclick = () => {
-      if (currentPage < numPages) renderPreviewPage(currentPage + 1)
-    }
-
-    // Profils rapides
     overlay.querySelectorAll('.tl-preset').forEach((btn) => {
       btn.onclick = () => {
+        const termes = $('#tl-terms')
         const val = btn.getAttribute('data-preset')
-        if (termsEl) {
-          termsEl.value = termsEl.value ? `${termsEl.value.trim()}, ${val}` : val
-          updateDetections()
-        }
+        termes.value = termes.value.trim() ? `${termes.value.trim()}, ${val}` : val
+        reglageChange()
       }
     })
 
-    // Tout caviarder : applique le caviardage de tous les termes détectés et enregistre directement
-    overlay.querySelector('#tl-btn-redact-all').onclick = () => {
-      const applyBtn = overlay.querySelector('#tl-btn-apply')
-      if (applyBtn) {
-        applyBtn.click()
-      }
-    }
-
-    // Effacer boîtes manuelles
-    overlay.querySelector('#tl-btn-clear-boxes').onclick = () => {
+    $('#tl-btn-clear-boxes').onclick = () => {
       manualBoxes.length = 0
       redrawOverlay()
+      majCompteurs()
     }
 
-    // Fermeture
-    const close = (cancelled, result = null) => {
+    const fermer = (resultat) => {
+      clearTimeout(minuterie)
+      tour++
       overlay.remove()
-      resolve(cancelled ? { cancelled: true } : { options: result, cancelled: false })
+      resolve(resultat)
+    }
+    $('#tl-btn-close').onclick = () => fermer({ cancelled: true })
+    $('#tl-btn-cancel').onclick = () => fermer({ cancelled: true })
+    $('#tl-btn-apply').onclick = () => {
+      if ($('#tl-btn-apply').disabled || !bilan) return
+      fermer({
+        cancelled: false,
+        options: getCurrentOptions(),
+        bilan: { zones: bilan.total + manualBoxes.length, sansTexte: bilan.sansTexte.length },
+      })
     }
 
-    overlay.querySelector('#tl-btn-close').onclick = () => close(true)
-    overlay.querySelector('#tl-btn-cancel').onclick = () => close(true)
-
-    overlay.querySelector('#tl-btn-apply').onclick = () => {
-      const applyBtn = overlay.querySelector('#tl-btn-apply')
-      if (applyBtn) {
-        applyBtn.disabled = true
-        applyBtn.textContent = 'Caviardage en cours...'
-      }
-      close(false, getCurrentOptions())
-    }
-
-    // Initialisation
     if (pdfDoc) {
-      renderPreviewPage(1)
+      afficherPage(1)
+      analyser()
+    } else {
+      signalerApercuImpossible()
     }
   })
 }

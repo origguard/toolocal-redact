@@ -16,6 +16,17 @@
 - Compatibilite declaree **33 a 35**, les trois versions encore prises en charge. Le manifeste annonçait 30 a 38 et le paquet publie 33 a 34 ; trois chiffres se contredisaient. Le packager **lit** maintenant ces bornes dans le manifeste au lieu de les recopier, donc l'ecart ne peut plus revenir.
 - La commande de verification publique est epinglee sur `@origguard-web/local-guard@2`. Sans numero elle prenait `latest`, donc la promesse dependait d'une version future. Depuis la 2.0.0 de cet outil, aucune exception declaree ne peut blanchir un appel vers une origine tierce.
 
+### Dialogue : limites affichees, lisibilite, garde-fous
+Defauts constates a l'essai humain sur Nextcloud 33, avant toute publication.
+- **Limites de l'outil affichees en tete du dialogue**, en encadre : recherche litterale, pas d'OCR, l'outil applique des regles et ne juge pas, relecture humaine indispensable, jeu de test qui est le notre.
+- **Texte illisible en theme sombre.** Des fonds clairs etaient ecrits en dur et le texte heritait la couleur du theme : clair sur clair. Les couleurs suivent maintenant les variables du theme Nextcloud, et aucun fond n'est pose sans la couleur du texte qui va dessus.
+- **Apercu coupe.** Le haut de la page etait hors d'atteinte (centrage flex dans une zone defilante) : les zones detectees etaient invisibles et la detection semblait ne pas fonctionner. L'apercu s'ajuste a la largeur et defile depuis le haut.
+- **Decompte sur le document entier**, et non plus sur la seule page affichee.
+- **Pages sans texte lisible signalees nommement** (scan, image) : la detection automatique n'y voit rien, il faut tracer a la main.
+- **Caviardage bloque, avec la raison ecrite**, tant qu'il n'y a rien a noircir, tant que l'apercu n'a pas pu s'afficher, et tant que la case de relecture n'est pas cochee. Auparavant on pouvait produire un fichier « -redacted » sans rien de noirci.
+- Le bouton « Tout caviarder », qui ne faisait rien de plus que « Appliquer », est retire.
+- Le message de fin donne le nombre de zones noircies et rappelle de relire le fichier avant de le transmettre.
+
 ### Perimetre
 - L'application fait une chose : caviarder un PDF. La suite Toolocal n'y est pas incluse et ne le sera pas ; seuls les motifs de detection des donnees personnelles sont communs, pas le code.
 
