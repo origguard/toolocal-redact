@@ -55,11 +55,73 @@ function showToast(msg, type = 'success') {
   }, 15000)
 }
 
-// Le message de fin porte le rappel de relecture : il est affiché par
-// l'application elle-même, de la même façon sur toutes les versions de
-// Nextcloud, plutôt que par une API de notification qui varie de l'une à l'autre.
-function notifySuccess(msg) {
-  showToast(msg, 'success')
+/**
+ * Message de fin d'un caviardage réussi, avec le téléchargement du fichier.
+ *
+ * Le fichier est remis depuis les octets que le navigateur vient de produire —
+ * ceux-là mêmes qui ont été enregistrés et relus : aucune requête ne part, et
+ * le téléchargement ne dépend pas du menu de l'application Fichiers. Le
+ * message reste affiché jusqu'à ce qu'on le ferme : c'est lui qui porte le
+ * rappel de relecture.
+ *
+ * @param {string} msg Le message
+ * @param {string} nom Nom du fichier enregistré
+ * @param {Uint8Array} octets Le PDF produit
+ */
+function annoncerFichier(msg, nom, octets) {
+  if (typeof document === 'undefined') return
+  if (typeof nom !== 'string' || nom === '' || !(octets instanceof Uint8Array) || octets.byteLength === 0) {
+    showToast(msg, 'success')
+    return
+  }
+  const boite = document.createElement('div')
+  boite.className = 'toolocal-redact-message'
+  boite.setAttribute('role', 'status')
+  boite.style.cssText = `
+    position: fixed; bottom: 24px; right: 24px; z-index: 100001;
+    max-width: min(560px, calc(100vw - 48px));
+    background: #047857; color: #ffffff;
+    padding: 14px 18px; border-radius: 8px;
+    box-shadow: 0 10px 25px rgba(0,0,0,0.25);
+    font-size: 14px; font-weight: 600; line-height: 1.45;
+  `
+  const texte = document.createElement('div')
+  texte.className = 'toolocal-redact-message-texte'
+  texte.textContent = msg
+  const barre = document.createElement('div')
+  barre.style.cssText = 'display: flex; gap: 10px; margin-top: 12px; flex-wrap: wrap;'
+  const bouton = (libelle, plein) => {
+    const b = document.createElement('button')
+    b.type = 'button'
+    b.textContent = libelle
+    b.style.cssText = `
+      margin: 0; min-height: 0; padding: 7px 14px; border-radius: 6px; cursor: pointer;
+      font: inherit; font-size: 13px; font-weight: 700;
+      border: 1px solid #ffffff;
+      background: ${plein ? '#ffffff' : 'transparent'}; color: ${plein ? '#064e3b' : '#ffffff'};
+    `
+    return b
+  }
+  const telecharger = bouton(L('Télécharger le fichier caviardé', 'Download the redacted file'), true)
+  telecharger.setAttribute('data-tl', 'telecharger')
+  telecharger.onclick = () => {
+    const url = URL.createObjectURL(new Blob([octets], { type: 'application/pdf' }))
+    const lien = document.createElement('a')
+    lien.href = url
+    lien.download = nom
+    lien.style.display = 'none'
+    document.body.appendChild(lien)
+    lien.click()
+    lien.remove()
+    setTimeout(() => URL.revokeObjectURL(url), 60000)
+  }
+  const fermer = bouton(L('Fermer', 'Close'), false)
+  fermer.setAttribute('data-tl', 'fermer')
+  fermer.onclick = () => boite.remove()
+  barre.append(telecharger, fermer)
+  boite.append(texte, barre)
+  document.querySelectorAll('.toolocal-redact-message').forEach((e) => e.remove())
+  document.body.appendChild(boite)
 }
 
 function notifyError(msg) {
@@ -102,7 +164,7 @@ export async function openRedactor(file, view = null) {
     const scan = bilan.sansTexte > 0
       ? L(' Attention : ' + bilan.sansTexte + ' page(s) sans texte lisible, non analysée(s).', ' Warning: ' + bilan.sansTexte + ' page(s) with no readable text, not analysed.')
       : ''
-    notifySuccess(L('Enregistré sous ', 'Saved as ') + savedName + ' — ' + fait + '.' + scan + L(' Relisez le fichier avant de le transmettre.', ' Review the file before you send it.'))
+    annoncerFichier(L('Enregistré sous ', 'Saved as ') + savedName + ' — ' + fait + '.' + scan + L(' Relisez le fichier avant de le transmettre.', ' Review the file before you send it.'), savedName, out)
   } catch (e) {
     const statut = e?.status ?? e?.response?.status
     notifyError(statut

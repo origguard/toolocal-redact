@@ -24,6 +24,10 @@
 ### Aucune lettre ne depasse d une zone noircie
 - Les zones etaient calculees en supposant toutes les lettres de meme largeur : la premiere ou la derniere lettre d un mot caviarde pouvait rester lisible (le « F » d un IBAN, le « c » d une adresse). L etendue est maintenant la reunion de deux estimations, chasse fixe et chasse variable, elargie d une marge. Une zone deborde donc un peu sur le texte voisin : c est voulu.
 
+### Telecharger le fichier caviarde
+- Le message de fin propose « Telecharger le fichier caviarde ». Le fichier est remis depuis les octets que le navigateur vient de produire : aucune requete ne part, et cela ne depend pas du menu de l application Fichiers.
+- Ce message reste affiche jusqu a ce qu on le ferme, au lieu de disparaitre apres quinze secondes : c est lui qui porte le rappel de relecture.
+
 ### Le dialogue existe en francais et en anglais
 - Les libelles restes en anglais au milieu d un dialogue francais sont corriges : tout le dialogue, l action du menu Fichiers et les messages existent dans les deux langues.
 - La langue est celle de l utilisateur dans Nextcloud : francais si elle commence par « fr », anglais dans tous les autres cas.

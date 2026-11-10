@@ -124,11 +124,25 @@ if (process.argv[4] === 'appliquer') {
   await page.waitForTimeout(4000)
   let message = null
   for (let i = 0; i < 40 && !message; i++) {
-    message = await page.evaluate(() => { const t = [...document.querySelectorAll('.toolocal-redact-message')].map((e) => e.textContent.trim()).filter(Boolean); return t.length ? t.join(' | ') : null })
+    message = await page.evaluate(() => { const e = document.querySelector('.toolocal-redact-message-texte'); return e ? e.textContent.trim() : null })
     if (!message) await page.waitForTimeout(500)
   }
   out.messageDeFin = message
+  // Le bouton du message remet le fichier produit : on le télécharge et on
+  // regarde ce qui arrive réellement sur le disque.
+  const attente = page.waitForEvent('download', { timeout: 20000 }).catch(() => null)
+  await page.click('.toolocal-redact-message [data-tl="telecharger"]')
+  const recu = await attente
+  if (recu) {
+    const chemin = await recu.path()
+    const octets = fs.readFileSync(chemin)
+    out.telechargement = { nom: recu.suggestedFilename(), octets: octets.length, debut: octets.subarray(0, 8).toString('latin1').trim(), depuis: recu.url().slice(0, 5) }
+    fs.copyFileSync(chemin, `/tmp/sonde/telecharge-${port}.pdf`)
+  } else {
+    out.telechargement = 'aucun téléchargement déclenché en 20 s'
+  }
   await page.waitForTimeout(6000)
+  out.messageToujoursLa = await page.locator('.toolocal-redact-message').count() === 1
   await page.screenshot({ path: `/tmp/sonde/apres-${port}-${scheme}.png` })
   const apres = await page.evaluate(() => [...document.querySelectorAll('tr[data-cy-files-list-row-name]')].map((r) => r.getAttribute('data-cy-files-list-row-name')))
   out.fichiersNouveaux = apres.filter((n) => !listeAvant.includes(n))
