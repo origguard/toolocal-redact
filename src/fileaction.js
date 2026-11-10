@@ -5,13 +5,12 @@
  * Supporte à la fois les nouvelles interfaces @nextcloud/files et les fallbacks legacy.
  */
 import { registerFileAction, Permission } from '@nextcloud/files'
-import { translate as t } from '@nextcloud/l10n'
 import { openRedactor } from './redact-view.js'
 import redactSvg from '../img/redact.svg?raw'
 
 const actionConfig = {
   id: 'toolocal-redact',
-  displayName: () => t('toolocal_redact', 'Redact'),
+  displayName: () => 'Caviarder',
   iconSvgInline: () => redactSvg,
 
   // Détection PDF universelle : vérifie que le document est un PDF lisible (Permission.READ)
@@ -58,7 +57,7 @@ if (typeof window !== 'undefined' && window.OCA && window.OCA.Files && window.OC
   try {
     window.OCA.Files.fileActions.registerAction({
       name: 'toolocal-redact',
-      displayName: t('toolocal_redact', 'Redact'),
+      displayName: 'Caviarder',
       mime: 'application/pdf',
       permissions: Permission.READ,
       icon: '',

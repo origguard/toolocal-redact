@@ -7,7 +7,8 @@
  *
  * ZÉRO TIERS · AUCUN SOUS-TRAITANT · AUCUN DPA REQUIS.
  */
-import { translate as t } from '@nextcloud/l10n'
+// Les libellés sont écrits en français dans le code : l'application ne livre
+// pas de fichiers de traduction, et un dialogue à moitié traduit se lit mal.
 
 // Moteur de caviardage local souverain
 import {
@@ -77,7 +78,7 @@ export async function openRedactor(file, view = null) {
 
     const before = inspectPdf(bytes)
     if (before.encrypted) {
-      notifyError(t('toolocal_redact', 'This PDF is password-protected and cannot be redacted here.'))
+      notifyError('Ce PDF est protégé par un mot de passe : il ne peut pas être caviardé ici.')
       return
     }
 
@@ -89,7 +90,7 @@ export async function openRedactor(file, view = null) {
     // Vérification d'intégrité : révision unique, non récupérable
     const checks = inspectPdf(out)
     if (checks.incrementalRevisions > 1) {
-      notifyError(t('toolocal_redact', 'Redaction produced a file with a recoverable earlier revision. Nothing was saved.'))
+      notifyError('Le fichier produit garde une version antérieure récupérable. Rien n’a été enregistré.')
       return
     }
 
@@ -98,12 +99,12 @@ export async function openRedactor(file, view = null) {
     // de la personne : l'outil n'a noirci que ce qui a été détecté ou tracé.
     const fait = bilan.zones > 1 ? bilan.zones + ' zones noircies' : bilan.zones + ' zone noircie'
     const scan = bilan.sansTexte > 0 ? ' Attention : ' + bilan.sansTexte + ' page(s) sans texte lisible, non analysée(s).' : ''
-    notifySuccess(t('toolocal_redact', 'Saved as {name}', { name: savedName }) + ' — ' + fait + '.' + scan + ' Relisez le fichier avant de le transmettre.')
+    notifySuccess('Enregistré sous ' + savedName + ' — ' + fait + '.' + scan + ' Relisez le fichier avant de le transmettre.')
   } catch (e) {
     const statut = e?.status ?? e?.response?.status
     notifyError(statut
       ? messageErreur(e)
-      : t('toolocal_redact', 'Redaction failed: {msg}', { msg: e.message }))
+      : 'Le caviardage a échoué : ' + (e && e.message ? e.message : 'erreur inconnue') + ' Le document d’origine n’a pas été modifié.')
   }
 }
 
@@ -243,7 +244,7 @@ async function presentEditor(bytes) {
     // octets resservent pour le caviardage lui-même.
     pdfDoc = await pdfjs.getDocument({ data: bytes.slice(), isEvalSupported: false, useSystemFonts: true }).promise
   } catch (err) {
-    console.warn('[Toolocal Redact] Preview load error:', err)
+    console.warn('[Toolocal Redact] Aperçu illisible :', err)
   }
   const numPages = pdfDoc ? pdfDoc.numPages : 0
 
@@ -265,10 +266,10 @@ async function presentEditor(bytes) {
       <div class="tl-modale">
         <div class="tl-entete">
           <div>
-            <h2>${t('toolocal_redact', 'Redact PDF Document')}</h2>
+            <h2>Caviarder un document PDF</h2>
             <div class="tl-sous-titre">Traitement dans votre navigateur · aucun envoi à un tiers</div>
           </div>
-          <button type="button" id="tl-btn-close" class="tl-btn tl-fermer" aria-label="${t('toolocal_redact', 'Cancel')}">✕</button>
+          <button type="button" id="tl-btn-close" class="tl-btn tl-fermer" aria-label="Fermer sans caviarder">✕</button>
         </div>
 
         <div class="tl-corps">
@@ -285,7 +286,7 @@ async function presentEditor(bytes) {
             </div>
 
             <div>
-              <label class="tl-titre" for="tl-terms">${t('toolocal_redact', 'Terms or patterns to redact')}</label>
+              <label class="tl-titre" for="tl-terms">Termes à caviarder</label>
               <textarea id="tl-terms" rows="4" placeholder="Un terme par ligne, par exemple :&#10;Jean Dupont&#10;Dossier 2026-114"></textarea>
               <p class="tl-aide">Termes exacts, un par ligne ou séparés par des virgules. Les expressions régulières /motif/i sont acceptées.</p>
             </div>
@@ -294,7 +295,7 @@ async function presentEditor(bytes) {
               <div class="tl-titre" style="margin:0;">Détection automatique</div>
               <label class="tl-case">
                 <input type="checkbox" id="tl-chk-sensitive" checked>
-                <span><strong>Mentions sensibles :</strong> Confidentiel, Secret, Creditor, Statutory Work, Forbidden…</span>
+                <span><strong>Mentions sensibles :</strong> Confidentiel, Secret, et les termes anglais Creditor, Statutory Work, Forbidden…</span>
               </label>
               <label class="tl-case">
                 <input type="checkbox" id="tl-chk-gdpr" checked>
@@ -327,7 +328,7 @@ async function presentEditor(bytes) {
             <div>
               <label class="tl-case" style="margin-bottom:10px;">
                 <input type="checkbox" id="tl-match-case">
-                <span>${t('toolocal_redact', 'Match case')}</span>
+                <span>Respecter les majuscules et minuscules</span>
               </label>
               <label class="tl-titre" for="tl-scale">Qualité du fichier produit</label>
               <select id="tl-scale">
@@ -359,8 +360,8 @@ async function presentEditor(bytes) {
           <div style="display:flex; flex-direction:column; gap:6px; align-items:flex-end;">
             <div class="tl-etat" id="tl-etat" aria-live="polite"></div>
             <div style="display:flex; gap:10px;">
-              <button type="button" id="tl-btn-cancel" class="tl-btn">${t('toolocal_redact', 'Cancel')}</button>
-              <button type="button" id="tl-btn-apply" class="tl-btn tl-btn-principal" disabled>${t('toolocal_redact', 'Apply Redaction')}</button>
+              <button type="button" id="tl-btn-cancel" class="tl-btn">Annuler</button>
+              <button type="button" id="tl-btn-apply" class="tl-btn tl-btn-principal" disabled>Caviarder</button>
             </div>
           </div>
         </div>
@@ -455,7 +456,7 @@ async function presentEditor(bytes) {
         bilan = { total, parPage, sansTexte }
         majCompteurs()
       } catch (err) {
-        console.warn('[Toolocal Redact] Analysis error:', err)
+        console.warn('[Toolocal Redact] Analyse impossible :', err)
         signalerApercuImpossible()
       }
     }
@@ -498,7 +499,7 @@ async function presentEditor(bytes) {
         $('#tl-defile').scrollTop = 0
         majCompteurs()
       }).catch((err) => {
-        console.warn('[Toolocal Redact] Preview render error:', err)
+        console.warn('[Toolocal Redact] Rendu de l’aperçu impossible :', err)
         signalerApercuImpossible()
       })
     }

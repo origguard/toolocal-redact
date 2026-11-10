@@ -24,6 +24,9 @@
 ### Aucune lettre ne depasse d une zone noircie
 - Les zones etaient calculees en supposant toutes les lettres de meme largeur : la premiere ou la derniere lettre d un mot caviarde pouvait rester lisible (le « F » d un IBAN, le « c » d une adresse). L etendue est maintenant la reunion de deux estimations, chasse fixe et chasse variable, elargie d une marge. Une zone deborde donc un peu sur le texte voisin : c est voulu.
 
+### Tout le dialogue est en francais
+- Les libelles restes en anglais (« Redact », « Apply Redaction », « Cancel », « Match case », « Saved as ») sont en francais, comme le reste du dialogue. L application ne livre pas de fichiers de traduction : elle s affiche en francais quelle que soit la langue de l instance.
+
 ### Dialogue : limites affichees, lisibilite, garde-fous
 Defauts constates a l'essai humain sur Nextcloud 33, avant toute publication.
 - **Limites de l'outil affichees en tete du dialogue**, en encadre : recherche litterale, pas d'OCR, l'outil applique des regles et ne juge pas, relecture humaine indispensable, jeu de test qui est le notre.
