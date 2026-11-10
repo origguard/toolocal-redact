@@ -14,7 +14,7 @@ jobs:
 
       # La promesse « aucun tiers » vérifiée sur l'ARTEFACT, pas sur les sources.
       - name: No third-party origin in the shipped bundle
-        run: npx @origguard-web/local-guard --target js
+        run: npx @origguard-web/local-guard@2 --target js
 
       # Deuxième filet : aucune ressource distante dans le HTML/les gabarits.
       - name: No remote asset in templates

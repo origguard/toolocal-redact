@@ -24,7 +24,7 @@ additional server component is required.
 **Verify it yourself.** The package is self-contained: it loads no remote
 script, font or asset. You can check that on the installed package:
 
-    npx @origguard-web/local-guard --target apps/toolocal_redact/js
+    npx @origguard-web/local-guard@2 --target apps/toolocal_redact/js
 
 Any call to a third-party origin makes that command fail. The only declared
 exception is WebDAV against your own instance, documented with its reason in
@@ -49,7 +49,7 @@ serveur supplémentaire n'est requis côté administrateur.
 script, aucune police ni ressource distante. Vous pouvez le contrôler
 directement sur le paquet installé :
 
-    npx @origguard-web/local-guard --target apps/toolocal_redact/js
+    npx @origguard-web/local-guard@2 --target apps/toolocal_redact/js
 
 Tout appel vers une origine tierce non déclarée fait échouer le contrôle. L'unique
 exception déclarée est WebDAV vers votre propre instance Nextcloud, documentée avec

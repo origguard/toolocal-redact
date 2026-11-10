@@ -44,7 +44,7 @@ L'argument s'effondre entièrement. **C'est la seule règle non négociable de c
 ## Comment elle est vérifiée, pas affirmée
 
 ```bash
-npx @origguard-web/local-guard --target js
+npx @origguard-web/local-guard@2 --target js
 ```
 
 `local-guard.json` déclare **une seule** exception : les appels WebDAV vers l'instance de l'utilisateur, avec leur motif. Tout appel vers une origine tierce fait échouer la CI.
