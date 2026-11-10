@@ -7,13 +7,7 @@
  *
  * ZÉRO TIERS · AUCUN SOUS-TRAITANT · AUCUN DPA REQUIS.
  */
-import { generateRemoteUrl } from '@nextcloud/router'
 import { translate as t } from '@nextcloud/l10n'
-import {
-  getRequestToken as getNcRequestToken,
-  fetchRequestToken,
-  getCurrentUser,
-} from '@nextcloud/auth'
 
 // Moteur de caviardage local souverain
 import {
@@ -25,237 +19,8 @@ import {
   PRESET_PATTERNS,
 } from './engine/redact.js'
 
-/**
- * Récupère le jeton CSRF de manière asynchrone avec renouvellement automatique.
- * Compatible Nextcloud Hub 30 à 38+.
- */
-async function getCsrfToken() {
-  // 1. Module officiel @nextcloud/auth
-  try {
-    const authTok = getNcRequestToken()
-    if (authTok) return authTok
-  } catch (e) {}
+import { lire, ecrire, messageErreur } from './webdav.js'
 
-  // 2. Global state & DOM dataset (Nextcloud Hub 30+)
-  if (typeof window !== 'undefined') {
-    if (globalThis._nc_auth_requestToken) return globalThis._nc_auth_requestToken
-    if (typeof document !== 'undefined') {
-      const headTok = document.head?.dataset?.requesttoken
-      if (headTok) return headTok
-      const bodyTok = document.body?.getAttribute('data-requesttoken')
-      if (bodyTok) return bodyTok
-      const meta = document.querySelector('meta[name="csrf-token"]')
-      if (meta && meta.content) return meta.content
-    }
-    if (window.OC && window.OC.requestToken) return window.OC.requestToken
-    if (window.oc_requesttoken) return window.oc_requesttoken
-  }
-
-  // 3. Récupération via l'API Nextcloud csrftoken si absent du DOM
-  try {
-    const fetchedTok = await fetchRequestToken()
-    if (fetchedTok) return fetchedTok
-  } catch (e) {}
-
-  // 4. Fallback direct /index.php/csrftoken
-  try {
-    const res = await fetch('/index.php/csrftoken', {
-      headers: { 'X-Requested-With': 'XMLHttpRequest' },
-      credentials: 'same-origin',
-    })
-    if (res.ok) {
-      const data = await res.json()
-      if (data && data.token) return data.token
-    }
-  } catch (e) {}
-
-  return ''
-}
-
-/**
- * Récupère le jeton CSRF de Nextcloud de manière synchrone.
- */
-function getRequestToken() {
-  try {
-    const authTok = getNcRequestToken()
-    if (authTok) return authTok
-  } catch (e) {}
-
-  if (typeof window !== 'undefined') {
-    if (globalThis._nc_auth_requestToken) return globalThis._nc_auth_requestToken
-    if (typeof document !== 'undefined' && document.head?.dataset?.requesttoken) {
-      return document.head.dataset.requesttoken
-    }
-    if (window.OC && window.OC.requestToken) return window.OC.requestToken
-    if (typeof document !== 'undefined') {
-      const bodyTok = document.body?.getAttribute('data-requesttoken')
-      if (bodyTok) return bodyTok
-    }
-  }
-  return ''
-}
-
-/**
- * Détermine les URLs WebDAV absolues pour la lecture et l'écriture du fichier
- * de manière 100% compatible avec Nextcloud Hub 30 à 38+.
- */
-function resolveWebDavUrls(file, suffix = '-redacted') {
-  const origName = file.basename || file.name || 'document.pdf'
-  const targetName = origName.replace(/(\.pdf)$/i, `${suffix}$1`)
-
-  // 1. Si le Node fournit déjà une URL WebDAV encodée (cas standard @nextcloud/files)
-  if (file.encodedSource) {
-    const readUrl = file.encodedSource
-    const saveUrl = file.encodedSource.replace(/(\.pdf)$/i, `${suffix}$1`)
-    return { readUrl, saveUrl, targetName }
-  }
-
-  if (file.source) {
-    const readUrl = encodeURI(file.source)
-    const saveUrl = encodeURI(file.source.replace(/(\.pdf)$/i, `${suffix}$1`))
-    return { readUrl, saveUrl, targetName }
-  }
-
-  // 2. Fallback via generateRemoteUrl
-  let davBase = ''
-  try {
-    davBase = generateRemoteUrl('dav/files')
-  } catch (e) {
-    davBase = '/remote.php/dav/files'
-  }
-
-  let userId = ''
-  try {
-    const user = getCurrentUser()
-    if (user && user.uid) userId = user.uid
-  } catch (e) {}
-  if (!userId) {
-    userId = (typeof window !== 'undefined' && window.OC && window.OC.getCurrentUser && window.OC.getCurrentUser()?.uid)
-      || (typeof window !== 'undefined' && window.OC && window.OC.currentUser)
-      || file.owner
-      || ''
-  }
-
-  const filePath = file.path
-    || (file.dir ? `${file.dir.replace(/\/+$/, '')}/${origName}` : `/${origName}`)
-
-  const cleanDavBase = davBase.replace(/\/+$/, '')
-  const cleanUser = encodeURIComponent(userId)
-  const cleanPath = filePath.replace(/^\/+/, '')
-
-  const readUrl = `${cleanDavBase}/${cleanUser}/${encodeURI(cleanPath)}`
-  const saveUrl = readUrl.replace(/(\.pdf)$/i, `${suffix}$1`)
-
-  return { readUrl, saveUrl, targetName }
-}
-
-/**
- * Lecture WebDAV native vers l'instance de l'utilisateur.
- */
-async function readFile(file) {
-  const { readUrl } = resolveWebDavUrls(file)
-  const token = getRequestToken()
-  const headers = {
-    'X-Requested-With': 'XMLHttpRequest',
-  }
-  if (token) {
-    headers.requesttoken = token
-  }
-
-  let res = await fetch(readUrl, {
-    method: 'GET',
-    headers,
-    credentials: 'same-origin',
-  })
-
-  // Tentative avec jeton rafraîchi si rejet CSRF ou session
-  if (res.status === 401 || res.status === 403) {
-    try {
-      const freshToken = await fetchRequestToken()
-      if (freshToken) {
-        headers.requesttoken = freshToken
-        res = await fetch(readUrl, {
-          method: 'GET',
-          headers,
-          credentials: 'same-origin',
-        })
-      }
-    } catch (e) {}
-  }
-
-  if (!res.ok) {
-    throw new Error(`Failed to read file via WebDAV (HTTP ${res.status})`)
-  }
-
-  const buf = await res.arrayBuffer()
-  return new Uint8Array(buf)
-}
-
-/**
- * Écriture WebDAV vers l'instance Nextcloud avec jeton CSRF et rechargement de vue.
- */
-async function writeFile(file, bytes, suffix = '-redacted', view = null) {
-  const { saveUrl, targetName } = resolveWebDavUrls(file, suffix)
-  let token = await getCsrfToken()
-
-  const makeHeaders = (csrfToken) => {
-    const h = {
-      'Content-Type': 'application/pdf',
-      'X-Requested-With': 'XMLHttpRequest',
-      'OCS-APIREQUEST': 'true',
-    }
-    if (csrfToken) {
-      h.requesttoken = csrfToken
-    }
-    return h
-  }
-
-  let res = await fetch(saveUrl, {
-    method: 'PUT',
-    headers: makeHeaders(token),
-    body: bytes,
-    credentials: 'same-origin',
-  })
-
-  // Si rejet CSRF (401, 403 ou 412), renouveler le jeton et réessayer immédiatement
-  if (res.status === 401 || res.status === 403 || res.status === 412) {
-    try {
-      const freshToken = await fetchRequestToken()
-      if (freshToken) {
-        token = freshToken
-        res = await fetch(saveUrl, {
-          method: 'PUT',
-          headers: makeHeaders(freshToken),
-          body: bytes,
-          credentials: 'same-origin',
-        })
-      }
-    } catch (e) {
-      console.warn('[Toolocal Redact] Token refresh retry failed:', e)
-    }
-  }
-
-  if (!res.ok && res.status !== 201 && res.status !== 204 && res.status !== 200) {
-    throw new Error(`Failed to save redacted file via WebDAV (HTTP ${res.status} ${res.statusText})`)
-  }
-
-  // Notifier l'app Fichiers pour faire apparaître immédiatement le nouveau document
-  try {
-    if (view && typeof view.reload === 'function') {
-      view.reload()
-    } else if (typeof window !== 'undefined' && window.OCA && window.OCA.Files && window.OCA.Files.fileList && typeof window.OCA.Files.fileList.reload === 'function') {
-      window.OCA.Files.fileList.reload()
-    }
-    if (typeof window !== 'undefined') {
-      window.dispatchEvent(new CustomEvent('files:reload'))
-      window.dispatchEvent(new CustomEvent('files:node:updated'))
-    }
-  } catch (err) {
-    // Non bloquant
-  }
-
-  return targetName
-}
 
 function showToast(msg, type = 'success') {
   if (typeof document === 'undefined') return
@@ -306,7 +71,7 @@ function notifyError(msg) {
  */
 export async function openRedactor(file, view = null) {
   try {
-    const bytes = await readFile(file)
+    const bytes = await lire(file)
 
     const before = inspectPdf(bytes)
     if (before.encrypted) {
@@ -326,10 +91,13 @@ export async function openRedactor(file, view = null) {
       return
     }
 
-    const savedName = await writeFile(file, out, '-redacted', view)
+    const { nom: savedName } = await ecrire(file, out, '-redacted')
     notifySuccess(t('toolocal_redact', 'Saved as {name}', { name: savedName }))
   } catch (e) {
-    notifyError(t('toolocal_redact', 'Redaction failed: {msg}', { msg: e.message }))
+    const statut = e?.status ?? e?.response?.status
+    notifyError(statut
+      ? messageErreur(e)
+      : t('toolocal_redact', 'Redaction failed: {msg}', { msg: e.message }))
   }
 }
 
@@ -441,9 +209,9 @@ async function presentEditor(bytes, file) {
         <label style="display:block; font-size:13px; font-weight:600; margin-bottom:6px;">
           ${t('toolocal_redact', 'Terms or patterns to redact')}
         </label>
-        <textarea id="tl-terms" rows="3" placeholder="credit, capital, debt, loss, percent, first..." style="width:100%; box-sizing:border-box; padding:10px; border-radius:6px; border:1px solid #cbd5e1; font-family:inherit; font-size:13px; resize:vertical;"></textarea>
+        <textarea id="tl-terms" rows="4" placeholder="Saisissez les termes exacts à occulter, un par ligne&#10;Ex:&#10;Jean Dupont&#10;Confidentiel&#10;secret@corp.com" style="width:100%; box-sizing:border-box; padding:10px; border-radius:6px; border:1px solid #cbd5e1; font-family:inherit; font-size:13px; resize:vertical;"></textarea>
         <div style="font-size:11px; color:#64748b; margin-top:4px;">
-          ${t('toolocal_redact', 'Separate terms with commas (supports multi-word phrases & regex /pat/i)')}
+          Saisissez les termes exacts à occulter, un par ligne (ou séparés par des virgules). Accepte aussi les regex /motif/i.
         </div>
       </div>
 
@@ -455,19 +223,19 @@ async function presentEditor(bytes, file) {
         <label style="display:flex; align-items:flex-start; gap:8px; font-size:12px; cursor:pointer;">
           <input type="checkbox" id="tl-chk-sensitive" checked style="margin-top:2px;">
           <span>
-            <strong>Identifiants sensibles :</strong> Creditor, Statutory Work, Redacted, Forbidden, Confidential...
+            <strong>Identifiants sensibles :</strong> Confidentiel, Secret, Creditor, Statutory Work, Forbidden...
           </span>
         </label>
 
         <label style="display:flex; align-items:flex-start; gap:8px; font-size:12px; cursor:pointer;">
-          <input type="checkbox" id="tl-chk-gdpr" style="margin-top:2px;">
+          <input type="checkbox" id="tl-chk-gdpr" checked style="margin-top:2px;">
           <span>
-            <strong>Assistance motifs RGPD :</strong> Aide au repérage (Emails, Téléphones, IBANs, Cartes, Sécurité sociale...)
+            <strong>Reconnaissance automatique (RGPD / PII) :</strong> Téléphones, Courriels, IBAN, Cartes bancaires, Sécurité sociale...
           </span>
         </label>
 
         <div style="background:#fffbeb; border:1px solid #fef3c7; border-left:3px solid #f59e0b; padding:6px 8px; border-radius:4px; font-size:10.5px; color:#92400e; line-height:1.35; margin-top:2px; margin-bottom:6px;">
-          ⚠️ <strong>Aide au repérage :</strong> Cette détection est une aide visuelle. Un format atypique, un espace inhabituel ou une césure de ligne peut échapper aux filtres. <em>Une relecture humaine reste obligatoire avant transmission.</em>
+          ⚠️ <strong>Aide au repérage :</strong> Cette détection est une aide visuelle. Un format atypique ou une césure de ligne peut échapper aux filtres. <em>Une relecture humaine reste obligatoire avant transmission.</em>
         </div>
 
         <div style="border-top:1px solid #e2e8f0; padding-top:8px; display:flex; align-items:center; justify-content:space-between;">
@@ -802,9 +570,12 @@ async function presentEditor(bytes, file) {
       }
     })
 
-    // Tout caviarder (ajoute les termes détectés en dur dans la boîte)
+    // Tout caviarder : applique le caviardage de tous les termes détectés et enregistre directement
     overlay.querySelector('#tl-btn-redact-all').onclick = () => {
-      updateDetections()
+      const applyBtn = overlay.querySelector('#tl-btn-apply')
+      if (applyBtn) {
+        applyBtn.click()
+      }
     }
 
     // Effacer boîtes manuelles

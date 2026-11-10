@@ -1,7 +1,7 @@
 /**
  * Action « Caviarder » sur les PDF dans l'app Fichiers Nextcloud.
  *
- * Compatible Nextcloud Hub 30 à 38.
+ * Compatible Nextcloud Hub 33 à 35.
  * Supporte à la fois les nouvelles interfaces @nextcloud/files et les fallbacks legacy.
  */
 import { registerFileAction, Permission } from '@nextcloud/files'
@@ -14,9 +14,10 @@ const actionConfig = {
   displayName: () => t('toolocal_redact', 'Redact'),
   iconSvgInline: () => redactSvg,
 
-  // Détection PDF universelle (mime ou extension) avec droit d'écriture si disponible
-  enabled: (files) => {
-    const list = Array.isArray(files) ? files : (files?.nodes ? files.nodes : [files])
+  // Détection PDF universelle : vérifie que le document est un PDF lisible (Permission.READ)
+  // Le refus d'écriture dans le dossier parent est traité lors de l'enregistrement WebDAV (erreur 403).
+  enabled: (nodes) => {
+    const list = Array.isArray(nodes) ? nodes : (nodes?.nodes ? nodes.nodes : [nodes])
     if (!list || list.length !== 1 || !list[0]) return false
     const node = list[0]
 
@@ -24,16 +25,16 @@ const actionConfig = {
     const name = (node.basename || node.name || '').toLowerCase()
     const isPdf = mime === 'application/pdf' || name.endsWith('.pdf')
 
-    // Si les permissions sont définies, vérifier le droit UPDATE
-    const hasPermission = typeof node.permissions === 'number'
-      ? Boolean(node.permissions & Permission.UPDATE)
+    const hasReadPermission = typeof node.permissions === 'number'
+      ? Boolean(node.permissions & Permission.READ)
       : true
 
-    return isPdf && hasPermission
+    return isPdf && hasReadPermission
   },
 
-  async exec(file, view, dir) {
-    const targetNode = file?.nodes ? file.nodes[0] : (Array.isArray(file) ? file[0] : file)
+  /** v4 : contexte déstructuré exec({ nodes, view, folder, contents }) */
+  async exec({ nodes, view }) {
+    const targetNode = nodes && nodes.length > 0 ? nodes[0] : null
     if (!targetNode) return null
     await openRedactor(targetNode, view)
     return null
@@ -59,7 +60,7 @@ if (typeof window !== 'undefined' && window.OCA && window.OCA.Files && window.OC
       name: 'toolocal-redact',
       displayName: t('toolocal_redact', 'Redact'),
       mime: 'application/pdf',
-      permissions: Permission.UPDATE,
+      permissions: Permission.READ,
       icon: '',
       actionHandler(fileName, context) {
         const fileInfo = context?.fileInfo || { name: fileName, dir: context?.dir }

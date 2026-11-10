@@ -41,7 +41,12 @@ export const PRESET_PATTERNS = {
     'Privileged',
     'Non divulgable',
     'Confidentiel',
+    'Confidentielle',
     'Secret Médical',
+    'Secret Professionnel',
+    'Diffusion Restreinte',
+    'Usage Interne',
+    'Strictement Confidentiel',
   ],
 }
 
@@ -180,7 +185,7 @@ export function calculateTextMatchBoxes(page, vp, textMap, options = {}) {
   if (Array.isArray(options.terms)) {
     userTerms = options.terms
   } else if (typeof options.terms === 'string') {
-    userTerms = options.terms.split(',').map((s) => s.trim()).filter(Boolean)
+    userTerms = options.terms.split(/[,\r\n]+/).map((s) => s.trim()).filter(Boolean)
   }
 
   for (const t of userTerms) {
@@ -317,17 +322,22 @@ export async function redactPdf(bytes, options = {}) {
   const scale = typeof options.scale === 'number' && options.scale > 0 ? options.scale : 2
   const manualBoxes = Array.isArray(options.manualBoxes) ? options.manualBoxes : []
 
-  // Chargement du PDF source dans PDF.js local
+  // Chargement du PDF source dans PDF.js local (copie défensive des octets pour éviter le détachement)
+  const inputData = bytes instanceof Uint8Array ? bytes.slice() : bytes
   const loadingTask = pdfjs.getDocument({
-    data: bytes,
-    disableWorker: true,
+    data: inputData,
     isEvalSupported: false,
     useSystemFonts: true,
   })
   const srcDoc = await loadingTask.promise
 
   // Création du nouveau document PDF de destination (100% vierge)
-  const outDoc = await PDFDocument.create()
+  //
+  // updateMetadata: false — sans lui, pdf-lib inscrit la date et l'heure
+  // exactes du traitement (CreationDate, ModDate) et son propre nom comme
+  // producteur. Le document produit ne doit rien porter : ni de l'original,
+  // ni du traitement. Contrôlé par scripts/verifier-sortie.mjs.
+  const outDoc = await PDFDocument.create({ updateMetadata: false })
 
   for (let pageNum = 1; pageNum <= srcDoc.numPages; pageNum++) {
     const page = await srcDoc.getPage(pageNum)
@@ -378,13 +388,10 @@ export async function redactPdf(bytes, options = {}) {
     })
   }
 
-  // Élimination totale de toute métadonnée résiduelle
-  outDoc.setTitle('')
-  outDoc.setAuthor('')
-  outDoc.setSubject('')
-  outDoc.setKeywords([])
-  outDoc.setProducer('')
-  outDoc.setCreator('')
+  // Aucune métadonnée à effacer : le document est neuf, rien n'est recopié
+  // de l'original, et updateMetadata: false empêche pdf-lib d'en créer.
+  // Appeler setTitle('') ici RECRÉERAIT un dictionnaire de métadonnées,
+  // vide mais présent — d'où leur suppression.
 
   // Sauvegarde à révision unique
   const finalBytes = await outDoc.save()
