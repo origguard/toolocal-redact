@@ -7,7 +7,7 @@
   "scripts": {
     "build": "webpack --config webpack.config.cjs --node-env production --progress",
     "dev": "webpack --config webpack.config.cjs --node-env development --progress",
-    "test": "node test/engine.test.mjs",
+    "test": "node test/engine.test.mjs && node test/tampon.test.mjs",
     "check:self-contained": "npx @origguard-web/local-guard@2 --target js",
     "package": "node scripts/package.cjs",
     "verifier-sortie": "node scripts/verifier-sortie.mjs",

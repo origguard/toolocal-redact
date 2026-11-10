@@ -16,6 +16,11 @@
 - Compatibilite declaree **33 a 35**, les trois versions encore prises en charge. Le manifeste annonçait 30 a 38 et le paquet publie 33 a 34 ; trois chiffres se contredisaient. Le packager **lit** maintenant ces bornes dans le manifeste au lieu de les recopier, donc l'ecart ne peut plus revenir.
 - La commande de verification publique est epinglee sur `@origguard-web/local-guard@2`. Sans numero elle prenait `latest`, donc la promesse dependait d'une version future. Depuis la 2.0.0 de cet outil, aucune exception declaree ne peut blanchir un appel vers une origine tierce.
 
+### Le fichier enregistre est bien un PDF
+- **Defaut grave corrige avant publication.** Le fichier « -redacted.pdf » enregistre dans Nextcloud n etait pas un PDF : il contenait la liste des octets ecrite en JSON, et ne s ouvrait pas. Cause : la bibliotheque WebDAV n envoie tel quel qu un ArrayBuffer ; un Uint8Array y est serialise. Constate sur Nextcloud 33, 34 et 35 en relisant un fichier produit. Les donnees d origine n y figuraient pas en clair, mais l utilisateur n obtenait aucun document caviarde.
+- Les octets partent maintenant sous forme d ArrayBuffer, et l application **relit le fichier qu elle vient d ecrire** : s il n est pas, octet pour octet, le PDF produit, il est retire et l erreur est dite.
+- Test ajoute (`test/tampon.test.mjs`) contre la fonction reelle de la bibliotheque.
+
 ### Dialogue : limites affichees, lisibilite, garde-fous
 Defauts constates a l'essai humain sur Nextcloud 33, avant toute publication.
 - **Limites de l'outil affichees en tete du dialogue**, en encadre : recherche litterale, pas d'OCR, l'outil applique des regles et ne juge pas, relecture humaine indispensable, jeu de test qui est le notre.

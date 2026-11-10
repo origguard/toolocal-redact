@@ -32,6 +32,7 @@
 
 import { getClient, getDefaultPropfind, resultToNode } from '@nextcloud/files/dav'
 import { emit } from '@nextcloud/event-bus'
+import { enTampon, estPdf, memesOctets } from './tampon.js'
 
 /* Un seul client pour la session : il porte l'URL de l'instance et le jeton. */
 let client = null
@@ -92,11 +93,23 @@ export async function ecrire(node, octets, suffixe = '-redacted') {
   /* overwrite: false est une seconde garde : si un fichier du même nom
      apparaît entre la vérification et l'écriture — un autre onglet, un client
      de synchronisation —, le serveur refuse au lieu d'écraser. */
-  await dav().putFileContents(chemin, octets, {
+  await dav().putFileContents(chemin, enTampon(octets), {
     overwrite: false,
     contentLength: octets.byteLength,
     headers: { 'Content-Type': 'application/pdf' },
   })
+
+  /* Relecture de ce qui vient d'être écrit. Un fichier nommé « .pdf » qui ne
+     serait pas, octet pour octet, le PDF produit ne doit pas rester à côté de
+     l'original sous l'apparence d'une version caviardée : on le retire et on
+     le dit. */
+  const relu = new Uint8Array(await dav().getFileContents(chemin, { format: 'binary' }))
+  if (!estPdf(relu) || !memesOctets(relu, octets)) {
+    try { await dav().deleteFile(chemin) } catch (e) {
+      console.warn('[Toolocal Redact] Fichier non conforme, retrait impossible :', e)
+    }
+    throw new Error('Le fichier enregistré ne correspond pas au PDF produit. Il a été retiré ; le document d’origine n’a pas été modifié.')
+  }
 
   /* Faire apparaître le fichier dans la vue sans recharger la page.
      On relit ses propriétés pour construire un vrai nœud : l'application
